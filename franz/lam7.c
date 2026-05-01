@@ -154,7 +154,10 @@ Lprocess()
 	char *command, *p;
 	int writep, readp;
 	int itemp;
-	int (*handler)(), (*signal())();
+	/* `handler` holds a saved signal handler. On glibc signal(2)'s
+	 * prototype lives in <signal.h>; don't redeclare it here.
+	 */
+	SIGTYPE (*handler)(int);
 	FILE *bufs[2],*obufs[2], *fpipe();
 	Savestack(0);
 

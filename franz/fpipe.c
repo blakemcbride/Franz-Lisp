@@ -40,6 +40,10 @@ FILE *info[2];
 }
 /* Nioreset *************************************************************/
 
+#ifdef RTPORTS
+static lispval NiorUtil();    /* defined further below */
+#endif
+
 lispval
 Nioreset() {
 #ifndef	RTPORTS
@@ -48,11 +52,17 @@ Nioreset() {
 	for(p = &_iob[3]; p < _iob + _NFILE; p++) {
 		if(p->_flag & (_IOWRT | _IOREAD)) fclose(p);
 		}
-#else	RTPORTS
-	lispval NiorUtil();
-
+#else	/* RTPORTS */
+	/* NiorUtil is declared static below; _fwalk is glibc-specific
+	 * (was BSD stdio). On Linux there's no equivalent loop -- fclose
+	 * on individual ports is handled per-port. Stub for now.
+	 */
+#if linux_x86_64
+	(void)NiorUtil;
+#else
 	_fwalk(NiorUtil);
-#endif	RTPORTS
+#endif
+#endif	/* RTPORTS */
 	return(nil);
 }
 
@@ -108,6 +118,16 @@ fstopen(base,count,flag)
 char *base;
 char *flag;
 {
+#if linux_x86_64
+	/* On glibc the right tool is fmemopen(3): create a FILE*
+	 * backed by a caller-supplied memory buffer. The original
+	 * fstopen built one by hand by poking BSD FILE internals
+	 * (the torek_stdio branch below was for ChrisTorek's stdio,
+	 * and the #else branch for SysV stdio); both peek at fields
+	 * glibc treats as private.
+	 */
+	return fmemopen(base, count, flag);
+#else
 	register FILE *p = fdopen(0,flag);
 
 #ifdef torek_stdio
@@ -125,6 +145,7 @@ char *flag;
 	p->_file = -1;
 #endif
 	return(p);
+#endif /* linux_x86_64 */
 }
 
 #ifdef SPISFP

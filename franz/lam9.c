@@ -18,7 +18,11 @@ static char *rcsid =
  */
 
 #include <stdio.h>		/*add definations for I/O and bandrate */
+#if linux_x86_64
+#include <termios.h>		/* replaces BSD <sgtty.h> */
+#else
 #include <sgtty.h>
+#endif
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <pwd.h>
@@ -37,6 +41,7 @@ extern short 	ospeed;
 extern char	PC;
 extern char   *BC;
 extern char   *UP;
+extern lispval newvec(), inewint();
 
 /*
 /*	This routine will initialize the termcap for the lisp programs.
@@ -49,7 +54,11 @@ Ltci()
 char *cp = getenv("TERM");
 char *pc;
 int found;
+#if linux_x86_64
+struct termios tty;
+#else
 struct sgttyb tty;
+#endif
 
 found = tgetent(bpbuf,cp);		/* open ther termcap file */
 switch(found) {
@@ -57,12 +66,17 @@ switch(found) {
       case 0 :	printf("\nError No Termcap Entry for this terminal \n");
 		break;
       case 1 : {			/* everything was ok	*/
-#ifdef i386_4_3
+#if linux_x86_64
+		/* Use termios to read the output baud rate from fd 1. */
+		if (tcgetattr(1, &tty) == 0)
+		    ospeed = cfgetospeed(&tty);
+#elif defined(i386_4_3)
 	        ioctl(1, TIOCGETP, &tty);
+		ospeed = tty.sg_ospeed;
 #else
 		gtty(1, &tty);
-#endif
 		ospeed = tty.sg_ospeed;
+#endif
 	        }
 		break;
 	}
@@ -81,6 +95,8 @@ return(nil);
 /*		line	: line if is nessery
 /*		colum	: colum if is nessaery
 /*									*/
+static int show();    /* fwd; defined below */
+
 lispval
 Ltcx()
 {
@@ -102,7 +118,7 @@ Ltcx()
 }
 
 
-static
+static int
 show(option,line,colum)
 char *option;
 int  *line,*colum;

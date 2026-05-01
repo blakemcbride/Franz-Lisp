@@ -12,6 +12,15 @@ static char *rcsid =
 
 
 #include "global.h"
+
+/* Foreign-function FASL is deferred in the Linux x86_64 port
+ * (see PortPlan.md). The original implementation reads BSD a.out
+ * files directly to splice compiled C code into the running Lisp;
+ * a Linux replacement would use ELF and dlopen. Until then this
+ * translation unit is empty.
+ */
+#if !linux_x86_64
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <aout.h>
@@ -626,3 +635,5 @@ tryagain:
 	}
 	return((char *) handy);
 }
+
+#endif /* !linux_x86_64 */

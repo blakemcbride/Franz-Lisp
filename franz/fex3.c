@@ -448,7 +448,15 @@ Ndumplisp()
 #endif	EUNICE_UNIX_OBJECT_FILE_CFASL
 }
 #endif
-#if (os_4_1 | os_4_1a | os_4_1c | os_4_2| os_4_3)
+#if linux_x86_64
+/* Linux has no vadvise(2). The closest analogue is madvise(2) but
+ * none of the call sites currently care about the hint, so stub.
+ * If page-access hinting becomes useful, switch to madvise.
+ */
+pagerand() { }
+pageseql() { }
+pagenorm() { }
+#elif (os_4_1 | os_4_1a | os_4_1c | os_4_2| os_4_3)
 
 #if (os_4_2 | os_4_3)
 #include <sys/vadvise.h>

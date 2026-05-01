@@ -12,22 +12,13 @@ static char *rcsid =
 
 #define TRUE 1
 #include "h/global.h"
-#if vax_4_2 | vax_4_3 | tahoe_4_3
-#define brk(p) syscall(17,p)
-#endif
-extern char holend[], end[];
-extern int usehole;
-extern char *curhbeg;
 
+/* The data-segment relocator only matters for the HOLE variant of
+ * Lisp (rawhlisp), which we do not build on Linux. The function is
+ * referenced from a few places in the kernel; stub it as a no-op so
+ * those references resolve at link time without dragging in the
+ * BSD-syscall plumbing the original needed.
+ */
 rlc()
 {
-	char *cp, *dp;
-	
-	brk(end);
-	dp = holend;
-	cp = dp - HOLE;
-	while (dp < end)
-		*dp++ = *cp++;
-	curhbeg = holend - HOLE;	/* set up the hole */
-	usehole = TRUE;
 }

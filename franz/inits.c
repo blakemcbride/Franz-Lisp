@@ -111,6 +111,8 @@ makenv()
 	np--;
 }
 
+static void re_enable();    /* forward decl; defined below */
+
 SIGTYPE sginth(signo){
 	re_enable(signo,sginth);
 	sigstruck |= (1 << signo);
@@ -202,9 +204,10 @@ badmr(number)
 }
 
 #define	mask(s)	(1 << ((s)-1))
-static
+static void
 re_enable(signo,handler)
-int (*handler)();
+int signo;
+SIGTYPE (*handler)(int);
 {
 #if (os_4_2| os_4_3)
 	sigsetmask(sigblock(0) &~ mask(signo));

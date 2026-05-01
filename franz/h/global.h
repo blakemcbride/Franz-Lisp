@@ -128,7 +128,12 @@ extern long *sp(), stack(), unstack();
 #endif
 
 extern char typetable[];  /*  the table with types for each page  */
-#define ATOX(a1)	((((int)(a1)) - OFFSET) >> 9)
+/* ATOX: pointer -> page index in typetable[]. Each Lisp page is 512
+ * bytes, so the shift is 9. The (uintptr_t) cast is required on
+ * x86_64 -- (int) would truncate the pointer. OFFSET is a runtime
+ * heap base on Linux (Phase 1b will replace the constant 0).
+ */
+#define ATOX(a1)	((((uintptr_t)(a1)) - OFFSET) >> 9)
 #define	TYPE(a1)	((typetable+1)[ATOX(a1)])
 #define	TYPL(a1)	((typetable+1)[ATOX(a1)])
 #define SETTYPE(a1,b,c)   {if((itemp = ATOX(a1)) >= fakettsize) \
@@ -144,7 +149,10 @@ extern char typetable[];  /*  the table with types for each page  */
 #define	HUNKP(a1)	((TYPE(a1) >= 11) & (TYPE(a1) <= 17))
 #define	HUNKSIZE(a1)	((TYPE(a1)+5) & 15)
 
-#define UPTR(x)	((unsigned)(((long)(x))-(long)CNIL))
+/* UPTR: unsigned pointer offset from CNIL, used as a one-shot range
+ * check against datalim in VALID(). 64-bit safe via uintptr_t.
+ */
+#define UPTR(x)	((uintptr_t)(((uintptr_t)(x))-(uintptr_t)CNIL))
 #define VALID(a)	(UPTR(a) <= UPTR(datalim))
 
 #define Popframe() (errp->olderrp)

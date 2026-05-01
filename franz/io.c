@@ -593,6 +593,7 @@ register char *part2;
 	unsigned char stats,c;
 	int cc, saweof = 0;
 	char *end1 = part2 - 1; lispval Ltimes();
+	extern lispval finatom(), calcnum();
 	Savestack(4);
 
 	while(VNUM==next()) {

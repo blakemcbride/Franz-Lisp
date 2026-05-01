@@ -92,7 +92,7 @@ char *bitmapc = (char *)bitmapi;
    only if gcstat is non zero */
 gcdump()
 {
-#ifdef
+#ifdef METER
 	extern struct vtimes premark,presweep,alldone;
 	int nbytes, recsize;
 	/* 16 bytes/page in the bitmap */

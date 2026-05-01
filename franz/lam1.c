@@ -452,7 +452,14 @@ Lnwritn()
 	}
 
 	port = okport(handy,okport(Vpoport->a.clb,stdout));
-#ifdef torek_stdio
+#if linux_x86_64
+	/* glibc FILE internals are opaque. ftello returns the current
+	 * stream position, which for write-only string ports (the usual
+	 * caller, see fstopen/fmemopen) is the byte count we want.
+	 */
+	value = (long)ftello(port);
+	if (value < 0) value = 0;
+#elif defined(torek_stdio)
 	value = port->_p - port->_bf._base;
 #else
 	value = port->_ptr - port->_base;
@@ -464,18 +471,29 @@ lispval
 Ldrain()
 {
 	register FILE *port;
-	register int iodes;
 	register lispval handy;
+#if !linux_x86_64
+	register int iodes;
 	struct sgttyb arg;
+#endif
 
 	if(lbot==np) handy = nil;
-	else 
+	else
 	{
 	    chkarg(1,"drain");
 	    handy = lbot->val;
 	}
 	port = okport(handy, okport(Vpoport->a.clb,stdout));
-#ifdef torek_stdio
+#if linux_x86_64
+	/* On glibc, drain a port by flushing its write buffer. There's
+	 * no portable way to tell write vs read without poking FILE
+	 * internals, so try fflush unconditionally; for read-only streams
+	 * it's a no-op. (The original BSD code also drained the kernel
+	 * tty queue via gtty/stty, but that's a separate concern from
+	 * the stdio buffer and isn't needed for our string-port use.)
+	 */
+	fflush(port);
+#elif defined(torek_stdio)
 	if(port->_w)
 	{
 	    fflush(port);

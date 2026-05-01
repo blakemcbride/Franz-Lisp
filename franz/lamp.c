@@ -19,7 +19,7 @@ short pbuf[PBUFSZ];
 
 /* data space for fasl to put counters */
 int mcnts[NMCOUNT];
-int mcntp = (int) mcnts;
+intptr_t mcntp = (intptr_t) mcnts;
 int doprof = TRUE;
 
 lispval
@@ -49,7 +49,7 @@ short	pbuf[8];
 
 /* data space for fasl to put counters */
 int mcnts[1];
-int mcntp = (int) mcnts;
+intptr_t mcntp = (intptr_t) mcnts;
 int doprof = FALSE;
 
 Lmonitor()

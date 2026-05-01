@@ -19,9 +19,12 @@ static char *rcsid =
 
 #if (os_4_2 || os_4_3)
 #include <sys/time.h>
-#else
-#include <time.h>
 #endif
+/* On glibc, struct tm lives in <time.h>; <sys/time.h> only declares
+ * struct timeval. Always include <time.h> so the gmtime/localtime
+ * blocks below see the full struct tm definition.
+ */
+#include <time.h>
 
 /* this is now a lambda function instead of a nlambda.
    the only reason that it wasn't a lambda to begin with is that 
