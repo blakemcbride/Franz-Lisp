@@ -191,11 +191,88 @@ extern lispval clinker();
  * runtime if reached.
  */
 
+/* Lcfasl -- load a compiled-Lisp shared object via dlopen/dlsym and
+ * register one of its symbols as a Lisp function.
+ *
+ * Calling convention (matches the original BSD ffasl.c cfasl):
+ *
+ *   (cfasl filename csym atom discipline disc-arg)
+ *
+ *   filename  -- path to a .so (atom or string)
+ *   csym      -- C symbol name to look up (atom or string, no leading
+ *                underscore on Linux ELF)
+ *   atom      -- Lisp atom whose function-binding is set to point at
+ *                the looked-up address
+ *   discipline-- e.g. "subroutine" or 'lambda; passed through to
+ *                bcd.discipline so the eval/funcall machinery knows
+ *                how to call into the function
+ *   disc-arg  -- discipline argument (often the empty string)
+ *
+ * Returns t on success, nil on dlopen/dlsym failure.
+ *
+ * Implementation note: RTLD_LOCAL keeps each loaded .sos symbol table
+ * private, so multiple compiled files can each have an `init` symbol
+ * without colliding. Cross-file Lisp calls go through the transfer
+ * table (clinker), not direct dlsym lookup.
+ */
+
+#include <dlfcn.h>
+
 lispval
 Lcfasl()
 {
-    return error("(cfasl) is not supported on linux_x86_64 (use load instead)",
-                 FALSE);
+    void *handle, *addr;
+    char *filename, *symname;
+    lispval atomname, disc;
+    lispval work;
+
+    chkarg(5, "cfasl");
+
+    filename = (char *) verify(lbot[0].val, "cfasl: bad filename");
+    symname  = (char *) verify(lbot[1].val, "cfasl: bad C symbol name");
+
+    if (TYPE(lbot[2].val) != ATOM)
+        error("cfasl: third arg must be atom", FALSE);
+    atomname = lbot[2].val;
+
+    /* Discipline: pass through unmodified. The interpreter checks
+     * whether bcd.discipline is a STRNG (foreign call) or an atom
+     * like 'lambda (Lisp call) at invocation time.
+     */
+    disc = lbot[3].val;
+    if (TYPE(disc) == ATOM)
+        disc = (lispval) disc->a.pname;
+
+    handle = dlopen(filename, RTLD_NOW | RTLD_LOCAL);
+    if (handle == (void *) 0) {
+        fprintf(stderr, "cfasl: dlopen(\"%s\"): %s\n", filename, dlerror());
+        return nil;
+    }
+
+    /* Clear any stale dlerror. */
+    dlerror();
+    addr = dlsym(handle, symname);
+    {
+        char *err = dlerror();
+        if (err != (char *) 0) {
+            fprintf(stderr, "cfasl: dlsym(\"%s\"): %s\n", symname, err);
+            dlclose(handle);
+            return nil;
+        }
+    }
+
+    work = newfunct();
+    work->bcd.start = (lispval (*) ()) addr;
+    work->bcd.discipline = disc;
+    atomname->a.fnbnd = work;
+
+    /* Note: handle is intentionally not tracked here. dlclose'ing on
+     * Lisp shutdown isn't critical, and dlclose during a session
+     * would invalidate any Lisp atoms still bound to symbols from
+     * that .so. A future cfasl-list could keep references for
+     * introspection.
+     */
+    return tatom;
 }
 
 lispval

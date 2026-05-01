@@ -98,12 +98,21 @@ allkernel: $(MipObj) $(ArchObj)
 # address space deterministic for Phase 3 debugging; static linking
 # is similarly debugger-friendly but pulls glibc's full footprint, so
 # we leave it dynamic for now.
-LDFLAGS = -m64 -no-pie -fno-pic
+LDFLAGS = -m64 -no-pie -fno-pic -rdynamic
+# -rdynamic exposes the kernels symbols (eval, inewint, cons, clink,
+# clinker, etc.) in rawlisps dynamic symbol table so dlopen'd compiled
+# Lisp .so files can call them. Without it, those symbols are hidden
+# in -no-pie mains and the loaded .so gets undefined-symbol errors at
+# load time.
+#
 # Libraries:
 #   -ltermcap supplies tgetent/tgetstr/tputs (lam9.c uses it). On modern
 #   Fedora/glibc this is provided by ncurses; -ltinfo also works.
 #   -lm for math (sqrt, sin, etc. via foreign-function calls).
-LDLIBS = -ltermcap -lm
+#   -ldl for dlopen/dlsym (CompilerPlan Phase 3). On recent glibc this
+#   is in libc itself; the explicit -ldl is a harmless no-op there and
+#   still works on older systems.
+LDLIBS = -ltermcap -lm -ldl
 
 rawlisp: $(MipObj) $(ArchObj)
 	$(CC) $(LDFLAGS) -o rawlisp $(MipObj) $(ArchObj) $(LDLIBS)

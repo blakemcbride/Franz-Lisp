@@ -330,7 +330,60 @@ near-portable C; just needs the same pass we did for the kernel.
 boots, with `clink` and friends now defined for real (instead of
 stubbed).
 
-## Phase 3 — Implement `cfasl` via `dlopen`
+## Phase 3 — Implement `cfasl` via `dlopen`  *(DONE)*
+
+**Outcome achieved:** end-to-end pipeline works. Compiled Lisp loads
+into a running `bin/lisp`, the `init()` C entry runs `clink()`, the
+compiled function gets registered in the Lisp atom table, and calls
+into it return the right value.
+
+Verified:
+
+```sh
+$ echo "(defun add2 (a b) (+ a b))" > /tmp/test-add2.l
+$ echo "(liszt -S test-add2)" | bin/liszt          # -> test-add2.c
+$ gcc -shared -fPIC -m64 -std=gnu89 \
+      -Wno-implicit-function-declaration -Wno-implicit-int \
+      -Wno-int-conversion -Wno-builtin-declaration-mismatch \
+      -I franz/h /tmp/test-add2.c -o /tmp/test-add2.so
+$ echo "(cfasl '\"/tmp/test-add2.so\" '\"init\" 'add2-init \
+              \"subroutine\" \"\") \
+        (add2-init) \
+        (add2 100 23)" | bin/lisp
+123
+```
+
+What was built:
+
+  * `franz/linux_x86_64/arch.c`: `Lcfasl` rewritten as a real
+    `dlopen`/`dlsym` implementation. RTLD_NOW for eager symbol
+    resolution (catches errors at load time); RTLD_LOCAL so each .so
+    keeps its own `init` symbol private (multiple loads don't collide
+    -- the only cross-file references go through the transfer-table
+    `clinker`, not direct dlsym). Returns `t` on success, `nil` on
+    dlopen/dlsym failure with a stderr message. Handles aren't tracked
+    yet -- a future cfasl-list could keep them for introspection or
+    explicit unload.
+  * `franz/linux_x86_64/Makefile`: link line gained `-rdynamic` and
+    `-ldl`. `-rdynamic` is the critical one: rawlisp is built `-no-pie`,
+    which by default hides its symbols from dlopen'd objects. The
+    compiled `.so` calls back into kernel functions (`eval`, `inewint`,
+    `cons`, `clink`, etc.); without `-rdynamic` those symbols are
+    invisible and dlopen errors with undefined refs.
+
+Notes that may bite later (or not):
+
+  * The init symbol name `init` works because in ELF the runtime-linker
+    init-on-load is `_init` (with the underscore), not bare `init`.
+    A bare-`init` user function is just a regular function.
+  * On glibc `_init` and `init_array` aren't to be confused with the
+    user's `init`. We're safe today.
+  * The function pointer cast in clinker (`(*fnb->bcd.start)()`) calls
+    a no-arg function. The actual compiled functions read their args
+    from `lbot[0..N-1].val`, not from C arg registers, so this works
+    regardless of the SysV ABI's register conventions. (Foreign C
+    functions called via callg_ are different -- those go through the
+    Phase 1g trampoline.)
 
 **Outcome:** from inside Lisp, `(cfasl 'foo.so 'init-foo)` opens
 foo.so via `dlopen`, looks up `init-foo` via `dlsym`, calls it. The
