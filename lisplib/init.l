@@ -13,13 +13,14 @@
 ;; LISPLIB env var overrides the path; default is the build-time install
 ;; root. The lisp wrapper exports it.
 (cond
-  ((getenv '|LISPLIB|)
-   (setq build:dir (getenv '|LISPLIB|))
-   (setq lisp-library-directory (getenv '|LISPLIB|)))
-  (t
-   (setq build:dir '"/usr/local/lib/lisp")
-   (setq lisp-library-directory '"/usr/local/lib/lisp")))
+  ((getenv '|LISPLIB|) (setq build:dir (getenv '|LISPLIB|)))
+  (t                   (setq build:dir '"/usr/local/lib/lisp")))
 
 (setq lisp-object-directory build:dir)
 
 (load (concat build:dir "/buildlisp"))
+
+;; buildlisp.l unconditionally clobbers lisp-library-directory (its
+;; (or (boundp ...) ...) check has the boundp commented out), so set
+;; it again after the load.
+(setq lisp-library-directory build:dir)

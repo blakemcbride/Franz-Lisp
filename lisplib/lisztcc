@@ -1,4 +1,64 @@
 #!/bin/sh
-LispRoot=/usr/local/src/franz/lisp
-CFLAGS="-O2 -I${LispRoot}/franz/h"
-exec cc -c ${CFLAGS} "$@"
+# lisplib/lisztcc -- assembler-step shim invoked by liszt after it
+# emits compiled-to-C output. liszt runs this as
+#
+#     lisztcc -o foo.o foo.c
+#
+# (the -o argument has a .o extension by historical convention; the
+# input is the temp .c liszt produced).
+#
+# We translate to gcc with the kernels CFLAGS and -shared -fPIC, and
+# rewrite the output extension from .o to .so so the result is a
+# shared object loadable via cfasl. The user sees the compiled
+# artifact as foo.so.
+
+set -eu
+
+# Locate the kernel headers regardless of how we were invoked. The
+# launcher (bin/liszt) sets FRANZ_ROOT; otherwise fall back to a
+# heuristic based on this script's own location.
+if [ -n "${FRANZ_ROOT:-}" ]; then
+    ROOT="${FRANZ_ROOT}"
+else
+    SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+    ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
+fi
+
+# Compose CFLAGS to match what the kernel was built with. The
+# -Wno-* tolerances let liszt's K&R-style emitted output through.
+CFLAGS="-O2 -m64 -fPIC -std=gnu89 \
+        -Wno-implicit-function-declaration \
+        -Wno-implicit-int \
+        -Wno-int-conversion \
+        -Wno-builtin-declaration-mismatch \
+        -I${ROOT}/franz/h"
+
+# Parse "-o NAME ..." out of the args, rewriting NAME's .o extension
+# to .so.
+OUTPUT=
+INPUTS=
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -o)
+            shift
+            # Replace trailing .o with .so. Anything else is left
+            # alone (this script is forgiving so a user invoking it
+            # by hand can pass through any output name).
+            case "$1" in
+                *.o)  OUTPUT="${1%.o}.so" ;;
+                *)    OUTPUT="$1" ;;
+            esac
+            shift ;;
+        *)
+            INPUTS="${INPUTS} $1"
+            shift ;;
+    esac
+done
+
+if [ -z "$OUTPUT" ] || [ -z "$INPUTS" ]; then
+    echo "lisztcc: usage: $0 -o output.o input.c [...]" >&2
+    exit 1
+fi
+
+# shellcheck disable=SC2086
+exec ${CC:-cc} ${CFLAGS} -shared -o "$OUTPUT" $INPUTS

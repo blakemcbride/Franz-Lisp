@@ -195,7 +195,13 @@ Lprocess()
 	}
 	
 	handler = signal(SIGINT,SIG_IGN);
-	if((child = vfork()) == 0 ) {
+	/* vfork(2) requires the child to call only exec or _exit before
+	 * the parent resumes; calling signal() and close()/dup() in the
+	 * child (as this code does) violates that and corrupts the parent
+	 * on glibc/Linux. Use plain fork() -- on Linux it's
+	 * copy-on-write so the cost difference is negligible.
+	 */
+	if((child = fork()) == 0 ) {
 	        /* if we will wait for the child to finish
 		 * and if the process had ignored interrupts before
 		 * we were called, then leave them ignored, else
@@ -203,7 +209,7 @@ Lprocess()
 		 */
 		if(wflag && handler != SIG_IGN)
 			signal(2,SIG_DFL);
-			
+
 		if(writep) {
 			close(0);
 			dup(childsi);
@@ -212,14 +218,20 @@ Lprocess()
 			close(1);
 			dup(childso);
 		}
-		if ((p = getenv("SHELL")) != NULL) {
-			execlp(p , p, "-c",command,0);
-			_exit(-1); /* if exec fails, signal problems*/
-		} else {
-			execlp("csh", "csh", "-c",command,0);
-			execlp("sh", "sh", "-c",command,0);
-			_exit(-1); /* if exec fails, signal problems*/
-		}
+		/* The trailing argument to execlp is a sentinel (char *)NULL.
+		 * On x86_64 variadic args are passed via registers vs. the
+		 * stack depending on type; passing bare `0` (an int) puts a
+		 * 32-bit value in a register where execlp expects a 64-bit
+		 * pointer, which gets read as a non-null garbage address and
+		 * confuses execlp. (char *)0 is the right form.
+		 */
+		/* Use /bin/sh directly. The original tried $SHELL first then
+		 * fell back to csh/sh, but $SHELL isnt always set in
+		 * subprocess environments and csh isnt usually present on
+		 * modern Linux. /bin/sh is required by POSIX.
+		 */
+		execl("/bin/sh", "sh", "-c", command, (char *)0);
+		_exit(-1); /* if exec fails, signal problems*/
 	}
 
 	/* close the duplicated file descriptors

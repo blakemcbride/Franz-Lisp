@@ -27,16 +27,19 @@
 (setq build:lisp-type 'franz)
 
 (cond
-  ((getenv '|LISPLIB|)
-   (setq build:dir (getenv '|LISPLIB|))
-   (setq lisp-library-directory (getenv '|LISPLIB|)))
-  (t
-   (setq build:dir '"/usr/local/lib/lisp")
-   (setq lisp-library-directory '"/usr/local/lib/lisp")))
+  ((getenv '|LISPLIB|) (setq build:dir (getenv '|LISPLIB|)))
+  (t                   (setq build:dir '"/usr/local/lib/lisp")))
 
 (setq lisp-object-directory build:dir)
 
 (load (concat build:dir "/buildlisp"))
+
+;; buildlisp.l unconditionally clobbers lisp-library-directory (its
+;; (or (boundp ...) ...) check has the boundp commented out). Reset
+;; the canonical path *after* buildlisp finishes so things like the
+;; liszt *process call to lisp-library-directory/lisztcc find our
+;; actual install root.
+(setq lisp-library-directory build:dir)
 
 
 ;; Now switch to back-end selection and load the compiler. The reader

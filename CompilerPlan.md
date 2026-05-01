@@ -452,7 +452,57 @@ hello, world
 world
 ```
 
-## Phase 4 — Make the build pipeline ergonomic
+## Phase 4 — Make the build pipeline ergonomic  *(DONE)*
+
+**Outcome achieved:** `bin/liszt foo.l` produces `foo.so` directly. No
+manual gcc step.
+
+What was built:
+
+  * `lisplib/lisztcc` -- /bin/sh shim invoked by liszt's `*process`
+    after the `.c` is emitted. Wrapper invocation is
+    `lisztcc -o foo.o foo.c`. The shim rewrites the `.o` extension
+    to `.so` and runs gcc with `-shared -fPIC` plus the kernels
+    same tolerant CFLAGS (`-std=gnu89`, the various
+    `-Wno-implicit-*`).
+  * `init.l` and `liszt-init.l`: the `(setq lisp-library-directory
+    ...)` moved to AFTER `(load buildlisp)`. buildlisp.l contains an
+    accidentally-unconditional `(setq lisp-library-directory
+    '/usr/local/lib/lisp)` -- its `(or (boundp ...) ...)` check has
+    the boundp commented out -- so any setq before the load gets
+    clobbered. liszt's `*process` call to
+    `lisp-library-directory/lisztcc` was hitting `/usr/local/lib/lisp/lisztcc`
+    (which doesnt exist) and the shell silently exited 0.
+
+Two kernel bugs surfaced and got fixed during Phase 4:
+
+  * `franz/lam7.c` `Lprocess` (the `*process` builtin) used `vfork`
+    and called signal()/close()/dup() in the child. vfork(2) requires
+    the child to call only exec or _exit -- everything else is
+    undefined. Replaced with `fork()`. On Linux the COW cost is
+    negligible.
+  * `Lprocess` also passed `0` (an int) as the trailing
+    NULL-sentinel to `execlp(..., command, 0)`. On x86_64 variadic
+    ABI passes `int 0` in a 32-bit slot where a 64-bit pointer is
+    expected, leaving high bits as garbage; execlp reads it as a
+    non-null pointer to a 4-billion-byte address and segfaults.
+    Fixed by passing `(char *)0`. Also dropped the original
+    csh-fallback path in favor of a direct `execl("/bin/sh", ...)`
+    -- modern Linux always has /bin/sh and rarely has csh.
+
+Verified end-to-end:
+
+```sh
+$ cd /tmp
+$ echo "(defun add2 (a b) (+ a b))" > test-add2.l
+$ bin/liszt test-add2.l                       # produces test-add2.so
+$ cat <<EOF | bin/lisp
+(cfasl '"/tmp/test-add2.so" '"init" 'add2-init "subroutine" "")
+(add2-init)
+(add2 100 23)
+EOF
+... -> 123
+```
 
 **Outcome:** `bin/liszt foo.l` produces `foo.so` directly, hiding
 the gcc step.
