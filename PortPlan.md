@@ -130,14 +130,20 @@ Still TBD:
 
 `franz/h/aout.h` and `franz/h/lispo.h` are symlinks to `/usr/include/a.out.h` (which doesn't exist on Linux). Replace with stub `aout.h` containing the minimum struct definitions referenced by `fasl.c` / `inits.c`, guarded by `#error` if compiled in. `dualaout.h`, `duallispo.h`, `tahoeframe.h`, `vaxframe.h`, `68kframe.h` — leave alone, never included on our target.
 
-## Phase 2 — Link `rawlisp`
+## Phase 2 — Link `rawlisp`  *(DONE; rawlisp segfaults on entry, Phase 3 territory)*
 
-**Outcome:** `franz/linux_x86_64/rawlisp` is a runnable ELF executable (likely segfaults on first instruction).
+**Outcome:** `franz/linux_x86_64/rawlisp` builds as a valid x86_64 ELF executable (544 KB, dynamically linked). It dumps core when run -- exactly as predicted. Phase 3 will debug the boot path.
 
-1. Resolve undefined symbols. Common offenders: `_filbuf`, `_doprnt`, BSD-only libc, asm symbols we removed.
-2. Linker flags: drop `-Z` (BSD ZMAGIC), drop `-H` (hole), drop the `/usr/lib/crt0.o` reference. Use the system default crt and let the linker pick `_start`. Add `-no-pie -static` for now to keep the address space deterministic — ASLR is the enemy of debugging Phase 3.
-3. Libraries: `-ltermcap` is unavailable on most modern Linuxes; install `ncurses-compat-libs` or replace termcap calls with `tputs`/`terminfo` (small surface area in `io.c` for the `clear-screen` family).
-4. Get `ld` happy. `nm rawlisp | grep ' U '` should show only libc symbols.
+What was done:
+
+  * Linker glue: top-level `Makefile`'s `rawlisp` target invokes the per-arch Makefile, which builds via `gcc -m64 -no-pie -fno-pic -ltermcap -lm`. No bare `ld`, no `-Z` ZMAGIC, no custom crt0.
+  * Two new arch source files at `franz/linux_x86_64/`:
+      - `bignum.c` — emul, ediv, dsmult, dodiv, dsneg, mlsb, adback, dsdiv, dsadd1, dsrsh, calqhat, exarith, dmlad, adbig, mulbig, mmuladd, Imuldiv. Ported from `reference/i386/` with `long long` replacing the i386 emul/ediv asm. The 30-bit-halfwords-in-int representation is preserved as-is.
+      - `arch.c` — inewint, blzero, prunei (rewritten using `OFFSET`/`datalim` instead of `gstart`), Ipushf/qretfromfr/retframe/jmpval (PORTABLE_FRAME helpers), tynames[] table, holbeg/holend stub globals, plus error stubs for nargs(), Lshostk, Lbaktrace, LIshowstack, Lpolyev, Lcfasl, Lrmadd, dispget, gstab, nlist, clinker, myfrexp, Lmkcth. Lrot ported as straight C.
+  * `ffasl.c`: lifted `verify`, `stabf`, and `Ilibdir` out of the `!linux_x86_64` gate -- they're used by the rest of the kernel even when fasl isn't built.
+  * `lisp.c`: `linux_x86_64` joins the `setlinebuf` group (vs. the BSD `_sobuf` global, which doesn't exist on glibc).
+
+`nm rawlisp | grep ' U '` shows only libc symbols (and one termcap reference resolved at runtime).
 
 ## Phase 3 — Boot the kernel
 

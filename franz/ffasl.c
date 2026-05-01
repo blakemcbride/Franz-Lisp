@@ -34,6 +34,37 @@ char *error;
 	}
 }
 
+/* `stabf` is the path of a /tmp symbol-table scratch file used by
+ * the original cfasl machinery. Other kernel files (lisp.c franzexit,
+ * inits.c initial) reference it on every shutdown / re-init -- so it
+ * must be defined regardless of whether fasl is built.
+ */
+char *stabf = 0;
+
+/* `Ilibdir` returns the path to the lisp library, configured via the
+ * Lisp variable `lisp-library-directory`. Plain C, used by lam2.c's
+ * Lload, kept out of the linux_x86_64 gate.
+ */
+char *
+Ilibdir()
+{
+	register lispval handy;
+tryagain:
+	handy = Vlibdir->a.clb;
+	switch(TYPE(handy)) {
+	case ATOM:
+		handy = (lispval) handy->a.pname;
+	case STRNG:
+		break;
+	default:
+		(void) error(
+"cfasl or load: lisp-library-directory not bound to string or atom",
+				TRUE);
+		goto tryagain;
+	}
+	return((char *) handy);
+}
+
 /* Foreign-function FASL is deferred in the Linux x86_64 port
  * (see PortPlan.md). The original implementation reads BSD a.out
  * files directly to splice compiled C code into the running Lisp;
@@ -47,7 +78,9 @@ char *error;
 #include <aout.h>
 #define round(x,s) ((((x)-1) & ~((s)-1)) + (s))
 
-char *stabf = 0, *strcpy(), *Ilibdir();
+char *strcpy();
+extern char *stabf;
+extern char *Ilibdir();
 extern int fvirgin;
 static seed=0, mypid = 0;
 static char myname[100];
@@ -620,24 +653,4 @@ alldone:
 	stabf = nstabf;
 	{Freexs(); return(tatom);}
 }
-char *
-Ilibdir()
-{
-	register lispval handy;
-tryagain:
-	handy = Vlibdir->a.clb;
-	switch(TYPE(handy)) {
-	case ATOM:
-		handy = (lispval) handy->a.pname;
-	case STRNG:
-		break;
-	default:
-		(void) error(
-"cfasl or load: lisp-library-directory not bound to string or atom",
-				TRUE);
-		goto tryagain;
-	}
-	return((char *) handy);
-}
-
 #endif /* !linux_x86_64 */

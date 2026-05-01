@@ -12,13 +12,15 @@ The port's *immediate* goal is a working **interpreter** (no compiler, no fasl, 
 
 ```
 ./lispconf linux_x86_64    # writes franz/h/lconf.h (one platform supported)
-make smoke                 # Phase 0: compile one kernel .c file to verify the build setup
-make kernel                # Phase 1 milestone: compile every machine-independent kernel .c
-make rawlisp               # Phase 2: link the raw interpreter (not yet wired up)
+make smoke                 # Phase 0: compile one kernel .c file
+make kernel                # Phase 1: compile every kernel .c file
+make rawlisp               # Phase 2: link rawlisp (links cleanly; segfaults on entry)
 make clean
 ```
 
 `make slow`, `make fast`, and `make install` are deliberately disabled — they invoke the multi-stage bootstrap (build liszt, dump a Lisp image), which depends on Phase 5 work (replace `dumplisp` with library auto-load).
+
+`rawlisp` currently builds as a valid x86_64 ELF and crashes when run — Phase 3 work is to walk through the kernel boot via gdb and fix initialization issues until it can read/print s-expressions.
 
 The per-arch Makefile lives at `franz/linux_x86_64/Makefile` and uses modern gcc with porting-friendly flags (`-std=gnu89`, `-Wno-implicit-function-declaration`, `-Wno-int-conversion`, etc.). Phase 1 will tighten these as cast issues are fixed at the source level.
 
@@ -27,7 +29,7 @@ The per-arch Makefile lives at `franz/linux_x86_64/Makefile` and uses modern gcc
 ## Repository layout
 
 - `franz/` — C kernel of the interpreter. ~30 machine-independent `.c` files plus headers in `franz/h/`. **All vax/tahoe/68k/i386 source has been deleted** (see git history if you need it).
-- `franz/linux_x86_64/` — the only per-arch directory. Holds the Makefile and `callg.c` (the x86_64 ABI varargs trampoline). Bignum primitives (Phase 1h) will land here too.
+- `franz/linux_x86_64/` — the only per-arch directory. Holds the Makefile, `callg.c` (x86_64 ABI varargs trampoline), `bignum.c` (the 16-or-30-bit-halfword bignum kernels ported from `reference/i386/`), and `arch.c` (inewint/blzero/prunei, PORTABLE_FRAME helpers, tynames[], stubs for things that don't translate to x86_64).
 - `franz/h/` — shared headers. `config.h` reads `lconf.h` (written by `lispconf`) and configures the kernel for the active platform. `aout.h` and `lispo.h` are local stubs (the originals were symlinks to `/usr/include/a.out.h`, which doesn't exist on Linux).
 - `cliszt/` — Lisp source for the **liszt compiler**. Kept around as future reference; the per-arch subdirs (`vax/`, `68k/`, `i386/`, `in-c/`) and `Makefile` are gone. Liszt is deferred (Phase 6+) and would need an entirely new x86_64 codegen.
 - `lisplib/` — Lisp library loaded by the interpreter. `.l` source remains; `autorun/` (per-machine bootstrap files) was deleted. See `lisplib/ReadMe` for descriptions of individual `.l` files. The `manual/` subdir holds `.r` files for the in-Lisp `help` command.

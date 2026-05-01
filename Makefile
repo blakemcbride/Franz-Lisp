@@ -40,8 +40,7 @@ kernel:
 	(cd ${FranzD} && $(MAKE) allkernel)
 
 rawlisp:
-	@echo "rawlisp linking is a Phase 2 target. Not yet wired up." ; \
-	 exit 1
+	(cd ${FranzD} && $(MAKE) rawlisp)
 
 # Phase 5 placeholders.
 slow fast install:

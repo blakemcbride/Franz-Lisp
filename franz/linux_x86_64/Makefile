@@ -73,10 +73,17 @@ smoke: ../lisp.o
 	@echo "Phase 0 smoke compile: lisp.o produced."
 	@file ../lisp.o
 
-# Arch-specific sources (this directory). Currently just the callg
-# trampoline; bignum/asm helpers will follow as Phase 1g/1h work.
-ArchSrc = callg.c
-ArchObj = callg.o
+# Arch-specific sources (this directory).
+#   callg.c -- foreign-function trampoline (Phase 1g)
+#   bignum.c -- bignum kernels formerly in i386/dsmult.c, dodiv.c,
+#               mlsb.c, calqhat.c, dmlad.c, mulbig.c, adbig.c,
+#               exarith.c (Phase 1g/1h: ports forward; Phase 1h
+#               can later widen the limb size)
+#   arch.c -- inewint/blzero/prunei, PORTABLE_FRAME helpers, tynames,
+#             holbeg/holend globals, and stubs for what doesn't
+#             translate (nargs, stack walkers, polyev)
+ArchSrc = callg.c bignum.c arch.c
+ArchObj = callg.o bignum.o arch.o
 
 # Build a single arch-specific .o.
 %.o: %.c
@@ -86,7 +93,23 @@ ArchObj = callg.o
 # is when this target succeeds.
 allkernel: $(MipObj) $(ArchObj)
 
+# Phase 2: link rawlisp. Use gcc (not bare ld) so the system crt and
+# default entry point are pulled in automatically. -no-pie keeps the
+# address space deterministic for Phase 3 debugging; static linking
+# is similarly debugger-friendly but pulls glibc's full footprint, so
+# we leave it dynamic for now.
+LDFLAGS = -m64 -no-pie -fno-pic
+# Libraries:
+#   -ltermcap supplies tgetent/tgetstr/tputs (lam9.c uses it). On modern
+#   Fedora/glibc this is provided by ncurses; -ltinfo also works.
+#   -lm for math (sqrt, sin, etc. via foreign-function calls).
+LDLIBS = -ltermcap -lm
+
+rawlisp: $(MipObj) $(ArchObj)
+	$(CC) $(LDFLAGS) -o rawlisp $(MipObj) $(ArchObj) $(LDLIBS)
+	@file rawlisp
+
 clean:
 	rm -f ../*.o *.o rawlisp nlisp snlisp
 
-.PHONY: smoke allkernel clean
+.PHONY: smoke allkernel rawlisp clean

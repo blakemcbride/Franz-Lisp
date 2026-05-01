@@ -35,7 +35,7 @@ char **argv,**arge;
 	pbuf pb;
 	
 	environ = arge;
-#if sun_4_2 || sun_4_2beta || i386_4_3
+#if sun_4_2 || sun_4_2beta || i386_4_3 || linux_x86_64
 	setlinebuf(stdout);
 #else
 	{extern char _sobuf[]; setbuf(stdout,_sobuf);}
