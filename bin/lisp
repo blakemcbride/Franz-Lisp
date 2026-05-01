@@ -1,0 +1,41 @@
+#!/bin/sh
+# bin/lisp -- launcher for the Linux x86_64 port of Franz Lisp.
+#
+# rawlisp is the bare interpreter (no library loaded); this wrapper
+# pipes lisplib/init.l into stdin first, then continues reading from
+# the user's stdin so the REPL works as expected. init.l sets up the
+# semicolon comment macro and runs buildlisp.l, which loads the
+# standard library (common0..3, syntax, charmac, macros, vector,
+# array, pp, version, tpl, toplevel) from .l source.
+#
+# The original Franz captured the post-load state via dumplisp(2);
+# dumplisp is deferred on x86_64 so every startup re-reads the
+# library. The cost is small (~a fraction of a second on modern HW).
+
+set -eu
+
+# Resolve the directory containing this script regardless of how it's
+# invoked, so the source tree works in-place without an `install` step.
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+ROOT="${FRANZ_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+
+RAWLISP="${ROOT}/franz/linux_x86_64/rawlisp"
+INIT="${ROOT}/lisplib/init.l"
+
+if [ ! -x "$RAWLISP" ]; then
+    echo "lisp: rawlisp not found at $RAWLISP" >&2
+    echo "      run 'make rawlisp' first." >&2
+    exit 1
+fi
+if [ ! -f "$INIT" ]; then
+    echo "lisp: init.l not found at $INIT" >&2
+    exit 1
+fi
+
+LISPLIB="${LISPLIB:-${ROOT}/lisplib}"
+export LISPLIB
+
+# Feed init.l to rawlisp first, then continue from the user's stdin.
+# `cat $INIT -` makes cat read $INIT to completion and then `-` to keep
+# reading from stdin until EOF.
+exec cat "$INIT" - | "$RAWLISP"

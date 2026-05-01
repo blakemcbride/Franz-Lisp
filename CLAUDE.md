@@ -14,13 +14,19 @@ The port's *immediate* goal is a working **interpreter** (no compiler, no fasl, 
 ./lispconf linux_x86_64    # writes franz/h/lconf.h (one platform supported)
 make smoke                 # Phase 0: compile one kernel .c file
 make kernel                # Phase 1: compile every kernel .c file
-make rawlisp               # Phase 2: link rawlisp (links cleanly; segfaults on entry)
+make rawlisp               # Phase 2: link rawlisp (the bare interpreter)
 make clean
+
+bin/lisp                   # full Franz Lisp -- rawlisp + library auto-loaded
 ```
 
-`make slow`, `make fast`, and `make install` are deliberately disabled — they invoke the multi-stage bootstrap (build liszt, dump a Lisp image), which depends on Phase 5 work (replace `dumplisp` with library auto-load).
+`make slow`, `make fast`, and `make install` are deliberately disabled — they invoke the multi-stage bootstrap that builds liszt and dumps a Lisp image. We don't need either: `bin/lisp` re-loads the library from `.l` source on every startup (cheap on modern hardware), and liszt isn't ported.
 
-`rawlisp` boots and runs Lisp. `(+ 1 2)` returns `3`; `(fact 10)` returns `3628800`. The full Lisp library isn't loaded yet (Phase 5 work), so library-only functions (`princ`, `reverse`, `length`, `defun` etc.) error as undefined — but kernel built-ins (`eq`, `cons`, `car`, `mapcar`, `cond`, `def`) all work.
+The library is loaded by `bin/lisp` via `lisplib/init.l`, which sets up `;` as the comment reader-macro and runs `buildlisp.l`. Override the library path with `LISPLIB=/path/to/lisplib bin/lisp`.
+
+What works: `defun`, `defmacro`, `cond`, `let`, recursion, `mapcar`, `princ`, `reverse`, `length`, the break loop, fixnum arithmetic, bignum multiplication (`times`), and reading/writing files via `load`.
+
+What's missing or broken: liszt (the compiler), fasl/cfasl/ffasl (loading compiled `.o`), dumplisp (saving images), `(showstack)`/`(baktrace)`, and bignum products that exceed 60 bits.
 
 The per-arch Makefile lives at `franz/linux_x86_64/Makefile` and uses modern gcc with porting-friendly flags (`-std=gnu89`, `-Wno-implicit-function-declaration`, `-Wno-int-conversion`, etc.). Phase 1 will tighten these as cast issues are fixed at the source level.
 

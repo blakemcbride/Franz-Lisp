@@ -178,18 +178,29 @@ Known issues, deferred:
 3. `error.c` and the catch/throw machinery — first errors will probably crash; debug as encountered.
 4. `frame.c` — sets up function-call frames. Important to verify frame chaining works before loading any Lisp source (which uses `funcall` extensively).
 
-## Phase 5 — Library load and library compatibility
+## Phase 5 — Library load  *(DONE)*
 
-**Outcome:** A modified `buildlisp.l`-equivalent loads `lisplib/*.l` files from source on every startup. `lisp` runs to a Lisp-coded top-level prompt.
+**Outcome:** `bin/lisp` boots Franz Lisp with the full standard library loaded. `defmacro`, `defun`, `princ`, `mapcar`, `let`, `reverse`, `length`, the break loop, etc. all work. The done-condition test cases all pass.
 
-1. `lisplib/buildlisp.l` is the existing source-load path (`build:load=t` makes it `load` `.l` instead of `fasl` `.o`). Strip the `(dumplisp ...)` call at the end; just drop into the loaded toplevel.
-2. Build a small wrapper: `rawlisp` → reads a startup `.l` file (path from env or argv) → that file does the equivalent of `make slow` step 2's `(load ...)` chain. Effectively, every startup is "slow boot."
-3. Test loading order: `common0.l`, `syntax.l`, `charmac.l`, `macros.l`, `common1.l`, `common2.l`, `common3.l`, `vector.l`, `array.l`, `pp.l`, `version.l`, `tpl.l`, `toplevel.l`. Each one tests progressively more of the kernel.
-4. Failures at this stage usually point back at kernel bugs — wrong `cdr` of a freshly-`cons`'d cell, GC corrupting state, reader botching dotted pairs, etc. Plan to bounce between Phase 5 issues and Phase 1/3 fixes.
-5. Don't try to load `format.l` (says the existing buildlisp: "only load if compiled, saves time"). Skip it for now.
-6. Don't load anything that depends on `fasl` working (e.g. CMU autoloads).
+What was built:
 
-**Done condition:** the user can type `(+ 1 2)`, `(defun fact (n) (if (= n 0) 1 (* n (fact (1- n)))))`, `(fact 10)` and get correct answers. `(load 'foo.l)` works for user files.
+  * `lisplib/init.l` -- a startup script that sets up `;` as the comment macro (via `int:setsyntax`), points `build:dir` at `lisp-library-directory` (or `$LISPLIB`), and `(load ...)`s `buildlisp.l`.
+  * `bin/lisp` -- a `/bin/sh` wrapper that pipes `init.l` into `rawlisp`'s stdin, then continues from the user's stdin so the REPL behaves normally. `cat init.l - | rawlisp`.
+  * No kernel changes were needed -- the existing `buildlisp.l` source-load path (`build:load=t`) just worked once `;` was set up.
+
+The library loaded without further kernel bug-chasing, which is unusual; the plan budgeted "Plan to bounce between Phase 5 issues and Phase 1/3 fixes." All the bugs that would have surfaced here were already shaken out in Phase 3.
+
+Verified working through `bin/lisp`:
+- `defun fact`, `(fact 10)` = 3628800
+- `defmacro inc`, `(inc counter)` mutates as expected
+- `(reverse '(1 2 3 4 5))` = `(5 4 3 2 1)`
+- `(length '(a b c d e f))` = 6
+- `(times 1000000 1000000)` = 1000000000000
+- `(princ "hello, world")` and `(terpri)`
+- Library autoloads work
+- The break loop recovers from errors
+
+**Done condition: met.** `bin/lisp` is a usable Franz Lisp interpreter on Linux x86_64.
 
 ## Tracking and intermediate milestones
 
