@@ -74,13 +74,20 @@ The single highest-volume issue. Hunt patterns:
 
 The 28→15 reduction in alloc.c warnings landed naturally with this work: the `(int)datalim`, `(int)beginsweep` style casts in GC and allocator code became `(uintptr_t)`. The remaining 15 alloc.c warnings are all Phase 1c free-list-encoding issues — writing pointer values into 4-byte int slots (`*loop = (int)next` and `temp->s.I = (int)freeptr`), which is a structural redesign.
 
-### 1c. SPP and struct-size redesign
+### 1c. SPP and struct-size redesign  *(DONE)*
 
-On x86_64, `struct dtpr { lispval cdr, car; }` is 16 bytes (was 8). Either:
-- **Keep 512-byte pages, halve SPP** (`DTPRSPP 32`, etc.): simplest, minimal code change, but doubles per-page bookkeeping overhead.
-- **Double the page size to 1024 bytes**: keeps SPP constants but every page-related shift (`>> 9` in `ATOX`) and `bitmapi` math changes.
+Went with **option B** (double LBPG to 1024 on x86_64) rather than the originally-recommended option A (halve SPP at 512-byte pages). The deciding factor: HUNK128 is 128 longs = 1024 bytes on 64-bit, so it can't fit in a 512-byte page at all — option A would require dropping HUNK128 or special-casing it.
 
-Recommend **option A** for Phase 1; revisit if it bottlenecks. Audit every `*SPP` constant in `global.h` and every place the spp count is used in `alloc.c`/`data.c`. The `ATOMSPP=25` is a special case — it's not 512/sizeof(atom); it accounts for atom structs being awkwardly sized. Recompute from first principles.
+What changed:
+
+- `LBPG` is `1024` for `linux_x86_64`, `512` otherwise (in `global.h`).
+- `ATOX` uses `>> 10` for x86_64 (was `>> 9`).
+- `TTSIZE` halved to 32768 to keep the heap at 32 MB.
+- `BITLONGS` is uniformly `TTSIZE * 4` for both platforms — the bitmap-int density (1 int per 256 bytes) is per-long-word, not per-page.
+- The free-list link encoding was the bigger change. The original code used `int *loop` and `*loop = (int)next` to thread free objects together; on 64-bit the pointer doesn't fit in an `int` slot. Switched to `long *loop` and `*loop = (long)next` throughout `alloc.c`'s `get_more_space` and `gc1` (the GC sweep). `pruneb` (which had been using `temp->s.I` — the first 4 bytes of an sdot — for the link) now writes the link into the first long of the slot, the same way `get_more_space` does, snapping `next` from `temp->s.CDR` first.
+- Globals widened from `int *` to `long *`: `bind_lists` (compiler literal-table chain), `beginsweep` (start of sweepable heap), `tempp` (vector free-list scratch). Cascading updates to declarations in `data.c`, `lam8.c`, `lamgc.c`, `sysat.c`.
+
+`alloc.c` is now warning-free. The remaining 23 warnings live in eval2.c (Phase 1g), divbig.c/pbignum.c (Phase 1h), and a stray pragma-resistant cast in lam8.c.
 
 ### 1d. GC bitmap
 

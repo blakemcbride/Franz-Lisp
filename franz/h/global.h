@@ -28,7 +28,20 @@
 #define	TRUE	1
 #define EVER	;;
 #define STRBLEN 512
+#if linux_x86_64
+/* Phase 1c: page size doubled on 64-bit so the SPP and type_len
+ * constants (sized as "objects per 512-byte page * 4-byte int slot")
+ * still hold when each object's pointer-bearing slot is now 8 bytes.
+ *   atom: 5 longs * 8 = 40 bytes; ATOMSPP=25 -> 1000 bytes <= 1024 OK
+ *   dtpr: 2 longs * 8 = 16 bytes; DTPRSPP=64 -> 1024 bytes OK
+ *   hunk128: 128 longs * 8 = 1024 bytes; HUNK128SPP=1 OK
+ * With 512-byte pages and 8-byte longs, hunk128 wouldn't fit at all
+ * and most other types would overflow.
+ */
+#define LBPG	1024
+#else
 #define LBPG	512
+#endif
 
 
 #define	NULL_CHAR	0
@@ -141,12 +154,17 @@ extern long *sp(), stack(), unstack();
 #endif
 
 extern char typetable[];  /*  the table with types for each page  */
-/* ATOX: pointer -> page index in typetable[]. Each Lisp page is 512
- * bytes, so the shift is 9. The (uintptr_t) cast is required on
- * x86_64 -- (int) would truncate the pointer. OFFSET is a runtime
- * heap base on Linux (Phase 1b will replace the constant 0).
+/* ATOX: pointer -> page index in typetable[]. The shift is
+ * log2(LBPG): 9 for 512-byte pages, 10 for 1024-byte pages. The
+ * (uintptr_t) cast is required on x86_64 -- (int) would truncate
+ * the pointer. OFFSET is a runtime heap base on Linux (set by
+ * heap_init() in alloc.c).
  */
+#if linux_x86_64
+#define ATOX(a1)	((((uintptr_t)(a1)) - OFFSET) >> 10)
+#else
 #define ATOX(a1)	((((uintptr_t)(a1)) - OFFSET) >> 9)
+#endif
 #define	TYPE(a1)	((typetable+1)[ATOX(a1)])
 #define	TYPL(a1)	((typetable+1)[ATOX(a1)])
 #define SETTYPE(a1,b,c)   {if((itemp = ATOX(a1)) >= fakettsize) \

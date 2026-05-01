@@ -152,7 +152,7 @@ int trleft = 0;			/* number of entries left in current table */
 
 /* globals from sysat.c  */
 
-int *beginsweep;		/* place for sweeper to begin 		*/
+long *beginsweep;		/* place for sweeper to begin (widened from int* for 64-bit) */
 int initflag = TRUE;		/* inhibit gcing initially		*/
 int tgcthresh = 15;
 int page_limit = (5 * TTSIZE) / 6;
@@ -169,7 +169,12 @@ lispval lastrtab;
 char purepage[TTSIZE];
 int fakettsize = TTSIZE - 8;
 int gcstrings;				/*  Do we mark and sweep strings? */
-int  *bind_lists = (int *) CNIL;	/*  lisp data for compiled code */
+/* bind_lists is a list of compiler-linked literal tables. Each entry
+ * holds a Lisp value (a pointer); on 64-bit Linux those don't fit in
+ * `int`, so the type widened from int* to long*. The list is empty
+ * unless code is loaded via fasl, which we don't build on x86_64.
+ */
+long *bind_lists = (long *) CNIL;
 
 
 struct str_x str_current[2];		/*  next free string spaces */

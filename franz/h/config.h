@@ -109,10 +109,9 @@
  * Heap sizing
  * ==================================================================== */
 
-/* TTSIZE -- absolute limit, in 512-byte pages, on the size of the Lisp
- * heap. Original i386 default was 6120 (~3 MB). Bumped to 65536
- * (32 MB) for the Linux x86_64 port -- modest by modern standards
- * and safe given that the bitmap/typetable arrays scale linearly
- * with TTSIZE. Recompile alloc.c and data.c after changing.
+/* TTSIZE -- absolute limit, in LBPG-sized pages, on the size of the
+ * Lisp heap. With LBPG=1024 on linux_x86_64, 32768 pages = 32 MB.
+ * Original i386 default was 6120 (3 MB) with 512-byte pages.
+ * Recompile alloc.c and data.c after changing.
  */
-#define TTSIZE          65536
+#define TTSIZE          32768

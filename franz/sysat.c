@@ -28,7 +28,7 @@ long int tint[2*NUMSPACES];
 extern int tgcthresh; 
 extern int initflag; 	/*  starts off TRUE to indicate unsafe to gc  */
 
-extern int *beginsweep;	/* place for garbage collector to begin sweeping */
+extern long *beginsweep;	/* place for garbage collector to begin sweeping */
 extern int page_limit;  /* begin warning messages about running out of space */
 extern char purepage[]; /* which pages should not be swept by gc */
 extern int ttsize;	/* need to know how much of pagetable to set to other */
@@ -102,7 +102,7 @@ makevals()
 	 * gcafter when it tries to determine how much space is free
 	 */
 	dtpr_pages->i = 0;
-	beginsweep = (int *) xsbrk(0);
+	beginsweep = (long *) xsbrk(0);
 
 	/*
 	 *  patching up info in type and pure tables

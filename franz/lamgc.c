@@ -26,7 +26,8 @@ static char *rcsid =
    if this causes variables to be undefined,then it should be removed
 */
 
-extern int *beginsweep,gensymcounter;
+extern long *beginsweep;
+extern int gensymcounter;
 int gcstat;
 int mrkdpcnt;
 int gccount;

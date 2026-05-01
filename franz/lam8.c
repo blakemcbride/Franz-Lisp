@@ -895,7 +895,7 @@ lispval
 Ipurcopy(handy)
 lispval handy;
 {
-    extern int *beginsweep;
+    extern long *beginsweep;
     register lispval retv, curv, lv;
     int i,size;
 
@@ -934,7 +934,7 @@ lispval handy;
 		    return(retv);
 
 	case INT:
-		    if((int *)handy < beginsweep) return(handy);
+		    if((long *)handy < beginsweep) return(handy);
 		    retv = pnewint();
 		    retv->i = handy->i;
 		    return(retv);

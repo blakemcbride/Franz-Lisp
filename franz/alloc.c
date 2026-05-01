@@ -21,13 +21,13 @@ static char *rcsid =
  
 # define NUMWORDS TTSIZE * 128  /*  max number of words in P0 space  */
 # define BITQUADS TTSIZE * 2	/*  length of bit map in quad words  */
-# if m_x86_64
-/* 64-bit longs: 64 longs/page (LBPG=512), 1 bit/long, 32 bits/int.
- * 64 / 32 = 2 ints/page in the bitmap. */
-# define BITLONGS TTSIZE * 2
-# else
-# define BITLONGS TTSIZE * 4	/*  length of bit map in long words  */
-# endif
+/* BITLONGS: number of int entries in bitmapi[].
+ *   32-bit (LBPG=512, sizeof(long)=4): 128 longs/page, 4 ints/page.
+ *   64-bit (LBPG=1024, sizeof(long)=8): 128 longs/page, 4 ints/page.
+ * Same value either way -- the per-int density is one int per 256
+ * bytes, independent of pointer/page size.
+ */
+# define BITLONGS TTSIZE * 4	/*  length of bit map in int words  */
 
 # ifdef vax
 # define ftstbit	asm("	ashl	$-2,r11,r3");\
@@ -94,7 +94,7 @@ static char *rcsid =
 
 /* METER denotes something added to help meter storage allocation. */
 
-extern int *beginsweep;			/* first sweepable data		*/
+extern long *beginsweep;			/* first sweepable data		*/
 extern char purepage[];
 extern int fakettsize;
 extern int gcstrings;
@@ -123,7 +123,7 @@ int bitmsk[32]={1,2,4,8,16,32,64,128,	/*  used by bit-marking macros  */
 		0x100000, 0x200000, 0x400000, 0x800000, 
 		0x1000000, 0x2000000, 0x4000000, 0x8000000, 
 		0x10000000, 0x20000000, 0x40000000, 0x80000000}; 
-extern int  *bind_lists;		/*  lisp data for compiled code */
+extern long *bind_lists;		/*  lisp data for compiled code */
 
 char *xsbrk();
 char *gethspace();
@@ -185,12 +185,17 @@ struct types *gcableptr[] = {
  *  If no space is available, returns positive number.
  *  If purep is TRUE, then pure space is allocated.
  */
-get_more_space(type_struct,purep)                                 
+get_more_space(type_struct,purep)
 struct types *type_struct;
 {
 	int cntr;
 	char *start;
-	int *loop, *temp;
+	/* On 64-bit Linux LBPG=1024 and slots are pointer-wide longs; the
+	 * free-list links must be long-sized to avoid truncating pointers.
+	 * On 32-bit the legacy `int *` would also have worked. type_len is
+	 * a count of word-sized slots in either case.
+	 */
+	long *loop, *temp;
 	lispval p;
 	extern char holend[];
 
@@ -222,19 +227,19 @@ struct types *type_struct;
 	if(!purep) ++((*(type_struct->pages))->i);
 
 	type_struct->space_left = type_struct->space;
-	temp = loop = (int *) start;
+	temp = loop = (long *) start;
 	for(cntr=1; cntr < type_struct->space; cntr++)
-		loop = (int *) (*loop = (int) (loop + type_struct->type_len));
+		loop = (long *) (*loop = (long) (loop + type_struct->type_len));
 
-	/* attach new cells to either the pure space free list  or the 
+	/* attach new cells to either the pure space free list  or the
 	 * standard free list
 	 */
 	if(purep) {
-	    *loop = (int) (type_struct->next_pure_free);
+	    *loop = (long) (type_struct->next_pure_free);
 	    type_struct->next_pure_free = (char *) temp;
 	}
 	else  {
-	    *loop = (int) (type_struct->next_free);
+	    *loop = (long) (type_struct->next_free);
 	    type_struct->next_free = (char *) temp;
 	}
 
@@ -697,24 +702,34 @@ pruneb(bignum)
 lispval bignum;
 {
 	register lispval temp = bignum;
+	register lispval next;
 
-	if(TYPE(temp) != SDOT) 
+	if(TYPE(temp) != SDOT)
 	    errorh(Vermisc,"value to pruneb not a sdot",nil,FALSE,0);
 
 	--(sdot_items->i);
-	temp->s.I = (int) sdot_str.next_free;
+	/* The free-list link is written into the first word of the
+	 * slot, the same way get_more_space() builds free lists. The
+	 * original `temp->s.I = (int)next_free` only worked when int
+	 * was pointer-sized (i.e. on 32-bit); on x86_64 it would
+	 * truncate. Walking via temp->s.CDR is still safe because we
+	 * snap `next` before overwriting the slot.
+	 */
+	next = temp->s.CDR;
+	*(long *)temp = (long) sdot_str.next_free;
 	sdot_str.next_free = (char *) temp;
 
 	/* bignums are not terminated by nil on the dual,
 	   they are terminated by (lispval) 0 */
 
-	while(temp = temp->s.CDR)
+	while((temp = next))
 	{
-	    if(TYPE(temp) != DTPR) 
+	    if(TYPE(temp) != DTPR)
 	      errorh(Vermisc,"value to pruneb not a list",
 		      nil,FALSE,0);
 	    --(dtpr_items->i);
-	    temp->s.I = (int) dtpr_str.next_free;
+	    next = temp->s.CDR;
+	    *(long *)temp = (long) dtpr_str.next_free;
 	    dtpr_str.next_free = (char *) temp;
 	}
 }
@@ -798,9 +813,11 @@ gc(type_struct)
 gc1()
 {
 	int j, k;
-	register int *start,bvalue,type_len; 
+	register int bvalue, type_len;
+	register long *start;            /* widened from int* for 64-bit */
 	register struct types *s;
-	int *point,i,freecnt,itemstogo,bits,bindex,type,bytestoclear;
+	long *point;                     /* widened from int* for 64-bit */
+	int i, freecnt, itemstogo, bits, bindex, type, bytestoclear;
 	int usedcnt;
 	char *pindex;
 	struct argent *loop2;
@@ -838,16 +855,20 @@ gc1()
 	 * 2^16 (or 1<<16 in the C lingo)
 	 */
 	bytestoclear = (((uintptr_t)datalim - (uintptr_t)beginsweep) >> 9) * 16;
-	for(start = bitmapi + ATOLX(beginsweep);
-	    bytestoclear > 0;)
+	{
+	    /* `bmstart` walks bitmapi (int *), distinct from `start` which
+	     * is now long * for the heap-sweep loop below. */
+	    int *bmstart = bitmapi + ATOLX(beginsweep);
+	    while(bytestoclear > 0)
 	    {
 		if(bytestoclear > MAXCLEAR)
-			blzero((uintptr_t)start,MAXCLEAR);
+			blzero((uintptr_t)bmstart,MAXCLEAR);
 		else
-			blzero((uintptr_t)start,bytestoclear);
-		start = (int *) (MAXCLEAR + (uintptr_t) start);
+			blzero((uintptr_t)bmstart,bytestoclear);
+		bmstart = (int *) (MAXCLEAR + (uintptr_t) bmstart);
 		bytestoclear -= MAXCLEAR;
 	    }
+	}
 			
 	/* mark all atoms in the oblist */
         for( bvalue=0 ; bvalue <= hashtop-1 ; bvalue++ ) /* though oblist */
@@ -881,13 +902,13 @@ gc1()
 	 * though, since that data is assumed to be pure.
 	 */
 	 point = bind_lists;
-	 while((start = point) != (int *)CNIL) {
+	 while((start = point) != (long *)CNIL) {
 	 	while( *start != -1 )
 	 	{
 	 		markdp((lispval)*start);
 	 		start++;
 	 	}
-	 	point = (int *)*(point-1);
+	 	point = (long *)*(point-1);
 	 }
 
 	/* next mark all system-significant lisp data */
@@ -925,14 +946,14 @@ gc1()
 
 	/* sweep up in memory looking at gcable pages */
 
-	for(start = beginsweep,  bindex = ATOLX(start), 
-		  pindex = &purepage[ATOX(start)]; 
-	    start < (int *)datalim;
+	for(start = beginsweep,  bindex = ATOLX(start),
+		  pindex = &purepage[ATOX(start)];
+	    start < (long *)datalim;
 	    start += 128, pindex++)
 	{
 	    if(!(s=gcableptr[type = TYPE(start)]) || *pindex
 #ifdef GCSTRINGS
-	     || (type==STRNG && !gcstrings) 
+	     || (type==STRNG && !gcstrings)
 #endif
 		)
 	    {
@@ -943,7 +964,7 @@ gc1()
 
 	    freecnt = 0;		/* number of free items found */
 	    usedcnt = 0;		/* number of used items found */
-	    
+
 	    point = start;
 	    /* sweep dtprs as a special case, since
 	     * 1) there will (usually) be more dtpr pages than any other type
@@ -955,19 +976,24 @@ gc1()
 	     */
 	    if((type == DTPR) || (type == SDOT))
 	    {
-		int *head,*lim;
-		head = (int *) s->next_free;	/* first value on free list*/
+		/* Pointers are pointer-wide longs on 64-bit; using int*
+		 * here would truncate the free-list links. The constants
+		 * 32 longs/16 dtprs and 4 bitmap-ints per page hold for
+		 * both 32-bit (LBPG=512) and 64-bit (LBPG=1024).
+		 */
+		long *head,*lim;
+		head = (long *) s->next_free;	/* first value on free list*/
 
 		for(i=0; i < 4; i++)	/* 4 bit map words per page  */
 		{
 		    bvalue = bitmapi[bindex++];	/* 32 bits = 16 dtprs */
 		    if(bvalue == 0)	/* if all are free	*/
 		    {
-			*point = (int)head;
-			lim = point + 32;   /* 16 dtprs = 32 ints */
+			*point = (long)head;
+			lim = point + 32;   /* 16 dtprs = 32 longs */
 			for(point += 2; point < lim ; point += 2)
 			{
-			    *point = (int)(point - 2);
+			    *point = (long)(point - 2);
 			}
 			head = point - 2;
 			freecnt += 16;
@@ -977,7 +1003,7 @@ gc1()
 			if(!(bvalue & 1))
 			{
 			    freecnt++;
-			    *point = (int)head;
+			    *point = (long)head;
 			    head = point;
 			}
 #ifdef METER
@@ -985,15 +1011,15 @@ gc1()
 			 * same as the address of its cdr
 			 */
 			else if(FALSE && gcstat && (type == DTPR))
-			{  
-			   if(((int)point & ~511) 
-			      == ((int)(*point) & ~511)) conssame++;
+			{
+			   if(((uintptr_t)point & ~(LBPG-1))
+			      == ((uintptr_t)(*point) & ~(LBPG-1))) conssame++;
 			   else consdiff++;
 			   usedcnt++;
 			}
 #endif
 			else usedcnt++;		/* keep track of used */
-			
+
 			point += 2;
 			bvalue = bvalue >> 2;
 		    }
@@ -1003,12 +1029,12 @@ gc1()
 	    else if((type == VECTOR) || (type == VECTORI))
 	    {
 		int canjoin = FALSE;
-		int *tempp;
+		long *tempp;
 
 		/* check if first item on freelist ends exactly at
 		   this page
 		 */
-		if(((tempp = (int *)s->next_free) != (int *)CNIL)
+		if(((tempp = (long *)s->next_free) != (long *)CNIL)
 		   && ((VecTotSize(((lispval)tempp)->vl.vectorl[-1])
 		   					    + 1 + tempp)
 		   			== point))
@@ -1049,7 +1075,7 @@ gc1()
 			}
 			else {
 			    /* vectors are linked at the property word */
-			    *(point - 1) = (int)(s->next_free);
+			    *(point - 1) = (long)(s->next_free);
 			    s->next_free = (char *) (point - 1);
 			}
 			canjoin = TRUE;
@@ -1108,7 +1134,7 @@ gc1()
 		    if(!(bvalue & 1))	/* if data element is not marked */
 		    {
 			freecnt++;
-			*point = (int) (s->next_free) ;
+			*point = (long) (s->next_free) ;
 			s->next_free = (char *) point;
 		    }
 		    else usedcnt++;
@@ -1289,8 +1315,8 @@ gethspace(segsiz,type)
 	extern usehole; extern char holend[]; extern char *curhbeg;
 	register char *value;
 
-	if(usehole) {	
-		curhbeg = (char *) roundup(((int)curhbeg),LBPG);
+	if(usehole) {
+		curhbeg = (char *) roundup(((uintptr_t)curhbeg),LBPG);
 		if((holend - curhbeg) < segsiz)
 		{	
 			usehole = FALSE;
