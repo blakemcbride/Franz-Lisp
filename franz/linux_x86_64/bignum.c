@@ -333,6 +333,12 @@ long mul, add;
         else {
             ptr = penult->s.CDR = newdot();
             ptr->s.I = c;
+            /* newdot initializes CDR to nil (= &nilatom in PORTABLE
+             * mode), not 0. The bignum walkers (pbignum, dmlad's
+             * own loop on the next call) expect 0-terminated chains;
+             * explicitly NULL it.
+             */
+            ptr->s.CDR = (lispval) 0;
         }
     }
 }
