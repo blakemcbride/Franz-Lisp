@@ -396,7 +396,7 @@ Ltimes()
 			work->s.I = hi;
 			work->s.CDR = 0;
 			restype = SDOT; prunep = TRUE;
-		    } 
+		    }
 		    break;
 		case DOUB:
 		    result->val->r *= work->i;

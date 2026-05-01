@@ -84,13 +84,18 @@
    (chk-eq "= diff"            (= 5 6) nil)
    (chk-eq "zerop t"           (zerop 0) t)
    (chk-eq "zerop f"           (zerop 1) nil)
-   ;; bignums: avoid bignum literals in source (reader bug for
-   ;; >9-digit numbers); avoid storing two bignums in variables
-   ;; for equality comparison (GC-during-allocation corrupts the
-   ;; first when the second allocates). Test by reducing to fixnum.
    (chk-eq "times fits-fixnum" (times 1000 1000) 1000000)
    (chk-eq "1 billion ok"      (times 50000 20000) 1000000000)
    (chk-eq "times negative"    (greaterp 0 (times -1000 1000000)) t)
+   ;; bignum arithmetic via equal (eq is identity for bignums)
+   (chk-eq "bignum equal"      (equal (times 1000000 1000000) 1000000000000) t)
+   (chk-eq "big square"        (equal (times 999999999 999999999)
+                                      999999998000000001) t)
+   (chk-eq "bignum plus"       (equal (plus (times 1000000 1000000)
+                                            (times 1000000 1000000))
+                                      2000000000000) t)
+   (chk-eq "bignum diff"       (difference (times 1000000 1000000) 999999999999) 1)
+   (chk-eq "bignum negate"     (equal (times -1000000 1000000) -1000000000000) t)
    ;; expt
    (chk-eq "expt"              (expt 2 10) 1024)
    ;; mod

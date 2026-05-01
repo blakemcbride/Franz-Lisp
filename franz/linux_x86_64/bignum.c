@@ -343,8 +343,16 @@ long mul, add;
     }
 }
 
-/* adbig -- bignum addition via stack-allocated limb arrays. */
-struct s_dot { long I; struct s_dot *CDR; };
+/* adbig -- bignum addition via stack-allocated limb arrays.
+ *
+ * IMPORTANT: this local s_dot must mirror the kernel's `struct sdot`
+ * (defined in dfuncs.h: `int I; lispval CDR;`). On i386 long==int, but
+ * on x86_64 LP64 long is 8 bytes -- using `long I` here would cause
+ * `p->I` to read 4 bytes of struct padding into the high half of the
+ * value, which then gets shifted into the low limbs by `carry >>= 30`
+ * and corrupts every limb above the lowest one.
+ */
+struct s_dot { int I; struct s_dot *CDR; };
 extern struct s_dot *export();
 
 struct s_dot *
