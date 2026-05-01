@@ -27,7 +27,7 @@ The per-arch Makefile lives at `franz/linux_x86_64/Makefile` and uses modern gcc
 ## Repository layout
 
 - `franz/` — C kernel of the interpreter. ~30 machine-independent `.c` files plus headers in `franz/h/`. **All vax/tahoe/68k/i386 source has been deleted** (see git history if you need it).
-- `franz/linux_x86_64/` — the only per-arch directory; currently holds just the Makefile. Arch-specific helpers (the `callg.c` varargs trampoline, mul/div emulation, etc.) will be added here in Phase 1.
+- `franz/linux_x86_64/` — the only per-arch directory. Holds the Makefile and `callg.c` (the x86_64 ABI varargs trampoline). Bignum primitives (Phase 1h) will land here too.
 - `franz/h/` — shared headers. `config.h` reads `lconf.h` (written by `lispconf`) and configures the kernel for the active platform. `aout.h` and `lispo.h` are local stubs (the originals were symlinks to `/usr/include/a.out.h`, which doesn't exist on Linux).
 - `cliszt/` — Lisp source for the **liszt compiler**. Kept around as future reference; the per-arch subdirs (`vax/`, `68k/`, `i386/`, `in-c/`) and `Makefile` are gone. Liszt is deferred (Phase 6+) and would need an entirely new x86_64 codegen.
 - `lisplib/` — Lisp library loaded by the interpreter. `.l` source remains; `autorun/` (per-machine bootstrap files) was deleted. See `lisplib/ReadMe` for descriptions of individual `.l` files. The `manual/` subdir holds `.r` files for the in-Lisp `help` command.

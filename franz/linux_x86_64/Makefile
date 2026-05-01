@@ -73,9 +73,18 @@ smoke: ../lisp.o
 	@echo "Phase 0 smoke compile: lisp.o produced."
 	@file ../lisp.o
 
+# Arch-specific sources (this directory). Currently just the callg
+# trampoline; bignum/asm helpers will follow as Phase 1g/1h work.
+ArchSrc = callg.c
+ArchObj = callg.o
+
+# Build a single arch-specific .o.
+%.o: %.c
+	$(CC) -c $(CFLAGS) -o $@ $<
+
 # Compile every machine-independent kernel source. Phase 1 milestone
 # is when this target succeeds.
-allkernel: $(MipObj)
+allkernel: $(MipObj) $(ArchObj)
 
 clean:
 	rm -f ../*.o *.o rawlisp nlisp snlisp

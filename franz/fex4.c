@@ -37,10 +37,9 @@ Lsyscall() {
 	register struct argent *aptr;
 	register int acount = 1;
 	extern syscall();
-	/* args are passed to callg_ which then forwards to syscall(2);
-	 * each slot must be wide enough to hold a pointer. On Linux LP64
-	 * that is `long`. Phase 1g will rewrite callg_ for the x86_64
-	 * ABI; the per-slot widening is correct for either ABI.
+	/* args are passed to callg_ which forwards to syscall(2). On
+	 * x86_64 SysV the trampoline (linux_x86_64/callg.c) dispatches
+	 * on arglist[0] and uses long-sized slots so pointers fit.
 	 */
 	long args[50];
 	Savestack(3);

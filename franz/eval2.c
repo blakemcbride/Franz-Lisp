@@ -65,13 +65,21 @@ Ifcall(a)
 lispval a;
 {
 	char *alloca();
-	long callg_();
-	register int *arglist;
+	/* arglist slots must be pointer-wide to hold pointers/ints
+	 * uniformly on x86_64 LP64. Phase 1g rewrote callg_ for the
+	 * x86_64 SysV ABI -- it dispatches on arglist[0] and calls fn
+	 * with up to 8 long-sized args. callg_d is the double-returning
+	 * variant (xmm0 vs rax).
+	 */
+	extern long callg_();
+	extern double callg_d();
+	register long *arglist;
 	register int index;
 	register struct argent *mynp;
 	register lispval ltemp;
 	pbuf pb;
-	int nargs = np - lbot, kind, mysize, *ap;
+	int nargs = np - lbot, kind, mysize;
+	long *ap;
 	Keepxs();
 
 	/* put a frame on the stack which will save np and lbot in a
@@ -83,38 +91,38 @@ lispval a;
 	/* dispatch according to whether call by reference or value semantics */
 	switch(kind) {
 	case 'f': case 'i': case 's': case 'r':
-		arglist = (int *) alloca((nargs + 1) * sizeof(int));
+		arglist = (long *) alloca((nargs + 1) * sizeof(long));
 		*arglist = nargs;
 		for(index = 1; index <=  nargs; index++) {
 			switch(TYPE(ltemp=mynp->val)) {
 				/* fixnums and flonums must be reboxed */
 			case INT:
 				stack(0);
-				arglist[index] = (int) sp();
+				arglist[index] = (long) sp();
 				*(int *) arglist[index] = ltemp->i;
 				break;
 			case DOUB:
 				stack(0);
 				stack(0);
-				arglist[index] = (int) sp();
+				arglist[index] = (long) sp();
 				*(double *) arglist[index] = ltemp->r;
 				break;
 
 				/* these cause only part of the structure to be sent */
 
 			case ARRAY:
-				arglist[index] = (int) ltemp->ar.data;
+				arglist[index] = (long) ltemp->ar.data;
 				break;
 
 
 			case BCD:
-				arglist[index] = (int) ltemp->bcd.start;
+				arglist[index] = (long) ltemp->bcd.start;
 				break;
 
 				/* anything else should be sent directly */
 
 			default:
-				arglist[index] = (int) ltemp;
+				arglist[index] = (long) ltemp;
 				break;
 			}
 			mynp++;
@@ -129,18 +137,18 @@ lispval a;
 		mynp++;
 		lbot++;
 	case 'c': case 'd':
-		/* make one pass over args 
-		calculating size of arglist */
+		/* make one pass over args
+		calculating size of arglist (in long-sized slots) */
 		while(mynp < np) switch(TYPE(ltemp=mynp++->val)) {
 		case DOUB:
-			nargs += ((sizeof(double)/sizeof(int))-1);
+			nargs += ((sizeof(double)/sizeof(long))-1);
 			break;
 		case VECTORI:
 			if(ltemp->v.vector[-1]==Vpbv) {
 			    nargs += -1+VecTotSize(ltemp->vl.vectorl[-2]);
 			}
 		}
-		arglist = (int *) alloca((nargs+1)*sizeof(int));
+		arglist = (long *) alloca((nargs+1)*sizeof(long));
 		*arglist = nargs;
 		ap = arglist + 1;
 		/* make another pass over the args
@@ -159,7 +167,7 @@ lispval a;
 				mysize = ltemp->vl.vectorl[-2];
 				mysize = sizeof(long) * VecTotSize(mysize);
 				xbcopy(ap,ltemp,mysize);
-				ap = (int *) (mysize + (int) ap);
+				ap = (long *) ((char *)ap + mysize);
 				break;
 			}
 		default:
@@ -176,9 +184,9 @@ lispval a;
 		case 'd': /* C function declared returning double */
 			{
 			double result =
-			   (* ((double (*)()) callg_))(a->bcd.start,arglist);
+			   callg_d((double (*)())a->bcd.start, arglist);
 			ltemp = newdoub();
-			ltemp->r = result; 
+			ltemp->r = result;
 			}
 			break;
 
@@ -187,7 +195,7 @@ lispval a;
 			break;
 
 		case 'v': /* C function returning a structure */
-			ap = (int *) callg_(a->bcd.start,arglist);
+			ap = (long *) callg_(a->bcd.start,arglist);
 			ltemp = (--lbot)->val;
 			mysize = ltemp->vl.vectorl[-2];
 			mysize = sizeof(long) * VecTotSize(mysize);

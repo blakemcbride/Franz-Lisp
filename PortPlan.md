@@ -109,14 +109,18 @@ Tactically: don't rewrite, just unblock the compiler.
 
 `global.h` line 23: `#define peekc(p) (p->_cnt>0 ? *(p)->_ptr&0377 : ...)` directly inspects FILE internals. The `torek_stdio` variant (line 21) uses `getc`/`ungetc`, which is the correct portable approach on glibc. Make sure `torek_stdio` is set for `linux_x86_64` and audit `io.c` for any other `_cnt`/`_ptr`/`_filbuf` references.
 
-### 1g. Replace i386 asm helpers with C
+### 1g. Replace i386 asm helpers with C  *(callg done; bignum primitives still TBD)*
 
-`franz/i386/`:
-- `emul.s` — 32×32→64 multiply with offset add. Replace with `__int128` or `(int64_t)a * (int64_t)b`.
-- `ediv.s` — 64÷32 divide with quotient/remainder. Same: `__int128` division.
-- `callg.c` / variants — varargs trampoline for calling Lisp functions from C with N args. On x86_64 this is more delicate because of register-passing ABI. Likely needs hand-written x86_64 asm or `__builtin_apply` (gcc extension). **Highest risk subtask in Phase 1.** Worst case, switch all internal calls to a single fixed-arity convention that passes args via the Lisp stack.
-- `nargs.c`, `inewint.c`, `clinkfns.c`, `prunei.c`, `malloc.c` — read each, port the C, drop or rewrite asm bits.
-- `lowaux.s` (in `franz/`) — frame manipulation. With `PORTABLE_FRAME` defined, this should be largely unused; verify and stub remaining symbols.
+`franz/linux_x86_64/callg.c` was written for x86_64. Approach: dispatch on `arglist[0]` and do a direct C call for each fixed N up to 8. gcc emits proper x86_64 SysV register loading (rdi/rsi/rdx/rcx/r8/r9 + stack overflow) for each switch case, so no hand-rolled asm or `__builtin_apply` is needed. A separate `callg_d` exists for double-returning calls (since x86_64 returns doubles in xmm0, not rax). Limitations: integer/pointer args only (no double args yet), no VECTORI struct args, max 8 args.
+
+`eval2.c`'s `Ifcall` was updated: `int *arglist` → `long *arglist`, `(int)` → `(long)` casts. The `'r'/'d'` (real/double-returning) case now calls `callg_d` instead of casting `callg_` through a double-returning function pointer.
+
+`lam8.c`'s `Lsprintf` was rewritten. The original "push args onto Lisp xstack, then call sprintf with one arg and let cdecl varargs pick them up" trick relied on i386 stack layout details and is meaningless on x86_64. New implementation collects up to 8 args into a `long[]` and dispatches to a fixed snprintf call by count.
+
+Still TBD:
+- `nargs.c`, `inewint.c`, `clinkfns.c` from `reference/i386/` would need to be ported if/when fasl comes back online (Phase 6+).
+- `emul.s` / `ediv.s` (32×32→64 mul, 64÷32 divide) replaced inline by `__int128` arithmetic in the bignum primitives during Phase 1h.
+- `lowaux.s` is unneeded under `PORTABLE_FRAME`; setjmp-based frames cover it.
 
 ### 1h. Bignum primitives
 

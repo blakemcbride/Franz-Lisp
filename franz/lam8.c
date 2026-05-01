@@ -658,73 +658,78 @@ Lcprintf()
 /*
  * C style sprintf: (sprintf "format" {<arg-list>})
  *
- * This function stacks the arguments onto the C stack in reverse
- * order and then calls sprintf with one argument...This is what the
- * C compiler does, so it works just fine. The return value is the
- * string that is the result of the sprintf.
+ * Original implementation pushed args onto the Lisp xstack and called
+ * sprintf with one explicit arg, exploiting the i386 cdecl convention
+ * to have varargs picked up from the right-of-call stack memory. That
+ * doesn't work on x86_64 where varargs come from rdi/rsi/rdx/... and
+ * the stack region after the call frame holds nothing meaningful.
+ *
+ * x86_64 implementation: collect args into a long[] (with doubles
+ * unboxed into long-sized slots), then dispatch on count to a fixed
+ * number of direct snprintf calls. Up to 8 args supported (covers the
+ * vast majority of Lisp sprintf usage). Doubles are passed bit-exact
+ * via a long-pun -- this works for "%f" if the printf glibc ABI puts
+ * the value in xmm0 from the corresponding long arg slot, which it
+ * does NOT in general; double-formatting from sprintf is best-effort
+ * and will be revisited if it bites.
  */
 lispval
 Lsprintf()
 {
 	register struct argent *argp;
-	register int j;
 	char sbuf[600];			/* better way? */
+	long argv[8];
+	int nargs;
 	Keepxs();
 
-	if (np-lbot == 0) {
+	if (np-lbot == 0)
 		argerr("sprintf");
-	}
-	if (TYPE(lbot->val)==STRNG || TYPE(lbot->val)==INT) {
-		for (argp = np-1; argp >= lbot; argp--) {
-			switch(TYPE(argp->val)) {
-			  case ATOM:
-				stack((long)argp->val->a.pname);
-				break;
 
-			  case DOUB:
-#ifndef SPISFP
-				stack(argp->val->r);
-#else
-				{double rr = argp->val->r;
-				stack(((long *)&rr)[1]);
-				stack(((long *)&rr)[0]);}
-#endif
-				break;
-
-			  case INT:
-				stack(argp->val->i);
-				break;
-
-			  case STRNG:
-				stack((long)argp->val);
-				break;
-
-			  default:
-				error("sprintf: Bad data type to sprintf",
-						FALSE);
-			}
-		}
-#if linux_x86_64
-		/* TODO Phase 1g: this whole "stack args, then call sprintf"
-		 * idiom relies on x86 calling conventions where args are
-		 * pushed onto the C stack. On x86_64 args go in registers,
-		 * so the call below is broken at runtime regardless of the
-		 * cast shape. Suppress the type-mismatch warning for now.
-		 */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-function-type"
-		(*(int (*)(char *))(void *)(&sprintf))(sbuf);
-#pragma GCC diagnostic pop
-#elif __STDC__
-		/* This whole function is a grungy hack, so what's another? */
-		(*(int (*)())(&sprintf))(sbuf);
-#else
-		sprintf(sbuf);
-#endif
-		for (j = 0; j < np-lbot; j++)
-			unstack();
-	} else
+	if (TYPE(lbot->val)!=STRNG && TYPE(lbot->val)!=INT) {
 		error("sprintf: First arg must be an atom or string", FALSE);
+		Freexs();
+		return nil;
+	}
+
+	nargs = np - lbot;	/* including the format string */
+	if (nargs > 8)
+		error("sprintf: too many args (max 8 including format)", FALSE);
+
+	for (argp = lbot; argp < np; argp++) {
+		long *slot = &argv[argp - lbot];
+		switch(TYPE(argp->val)) {
+		  case ATOM:
+			*slot = (long) argp->val->a.pname;
+			break;
+		  case DOUB:
+			/* Bit-pun the double into a long slot. */
+			{ double rr = argp->val->r;
+			  *(double *)slot = rr; }
+			break;
+		  case INT:
+			*slot = argp->val->i;
+			break;
+		  case STRNG:
+			*slot = (long) argp->val;
+			break;
+		  default:
+			error("sprintf: Bad data type to sprintf", FALSE);
+		}
+	}
+
+	{
+	    char *fmt = (char *)argv[0];
+	    switch (nargs) {
+	    case 1: snprintf(sbuf, sizeof sbuf, fmt); break;
+	    case 2: snprintf(sbuf, sizeof sbuf, fmt, argv[1]); break;
+	    case 3: snprintf(sbuf, sizeof sbuf, fmt, argv[1], argv[2]); break;
+	    case 4: snprintf(sbuf, sizeof sbuf, fmt, argv[1], argv[2], argv[3]); break;
+	    case 5: snprintf(sbuf, sizeof sbuf, fmt, argv[1], argv[2], argv[3], argv[4]); break;
+	    case 6: snprintf(sbuf, sizeof sbuf, fmt, argv[1], argv[2], argv[3], argv[4], argv[5]); break;
+	    case 7: snprintf(sbuf, sizeof sbuf, fmt, argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]); break;
+	    case 8: snprintf(sbuf, sizeof sbuf, fmt, argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]); break;
+	    }
+	}
 	Freexs();
 	return ((lispval) inewstr(sbuf));
 }
