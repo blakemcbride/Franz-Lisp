@@ -145,15 +145,29 @@ What was done:
 
 `nm rawlisp | grep ' U '` shows only libc symbols (and one termcap reference resolved at runtime).
 
-## Phase 3 — Boot the kernel
+## Phase 3 — Boot the kernel  *(DONE; kernel runs Lisp expressions)*
 
-**Outcome:** `./rawlisp` runs, prints a prompt or error, doesn't segfault before reaching `main`'s body.
+**Outcome:** `./rawlisp` boots cleanly, reads s-expressions, evaluates them, and prints results. `(+ 1 2)` returns `3`. List ops, kernel built-ins, and `mapcar` all work. The full Lisp library still isn't loaded (Phase 5).
 
-1. `inits.c` builds the initial atom table, opens stdin/stdout, mmaps the heap, builds the typetable, allocates the initial set of atoms (`nil`, `t`, `*`, etc.). Step through with gdb on first run; everything in this file is suspect.
-2. `nilatom` and `eofatom` — `PORTABLE` defines `nil` as `&nilatom`. These are actual `struct atom` globals; verify they're properly zero-initialized and live outside the heap (or in a fixed reserved page).
-3. The argument-passing stack (`np`, `lbot`, `xstack[]`): `SPISFP` is set, so we use the software-managed stack rather than abusing the C SP. Verify `sp()`/`stack()`/`unstack()` work — they're macros into `xsp`/`xstack` for the SPISFP case.
-4. Signal handling: SIGINT, SIGFPE, SIGSEGV (used for stack-overflow detection in some paths). Linux delivers signals with `siginfo_t`; the existing handlers ignore that, which is fine for SIG_DFL-style use.
-5. Expect to spend 1-3 days here chasing crashes. Common pattern: fix one field of `struct atom`, re-run, hit next crash, repeat.
+Three crashes / wrong-result fixes drove Phase 3:
+
+1. **`TYPE()` crashed on non-heap pointers.** On the original i386 port BSS sat just below the heap with OFFSET=0 — pointers to static atoms (`nilatom`, `eofatom`) had small ATOX indices that landed in the typetable. On x86_64 the heap is mmap'd at a high address and ATOX of a static pointer underflows to a huge index, walking off the end of `typetable[]`. Fix: `TYPE()` macro now bounds-checks the heap range and returns `UNBO` for non-heap pointers.
+
+2. **`Fixzero` pre-allocated fixnums needed special casing.** `inewint` returns `Fixzero + n` for small ints (a static array in BSS). `TYPE(Fixzero+n)` originally returned a stale-but-acceptable typetable value on i386; with Linux's strict heap separation it returned UNBO, breaking arithmetic primitives that check `TYPE(arg) == INT`. Fix: `TYPE()` recognizes the `Fixzero` range explicitly. Also: `markdp()`'s pre-loop `p <= nil` early-out (which assumed BSS-below-heap layout) became `!ATX_INHEAP(p)`.
+
+3. **`emul`/`ediv` parameter-width mismatch.** I'd ported `emul` with `int s[2]` output, but every caller in `bignum.c` declares `long res[2]` or `struct vl { long high, low; }`. On 32-bit those sizes happened to coincide; on x86_64 LP64, writing 4-byte ints into 8-byte slots leaves the high half undefined. The bignum reader (`calcnum`) saw garbage in `temp->s.CDR` and never converted small bignums back to fixnums — so `(+ 1 2)` saw "non-fixnum arguments". Fix: `emul`/`ediv` use `long s[2]` / `long p[2]` to match callers.
+
+Verified working in the bare kernel (no library):
+- arithmetic on fixnums, lists (`cons`, `car`, `cdr`, `quote`)
+- recursion (`(defun fact (n) (cond ((zerop n) 1) (t (* n (fact (sub1 n))))))` — `(fact 10)` = 3628800)
+- equality (`eq`, `equal`)
+- higher-order (`mapcar`)
+- `times` for products that fit in a 2-halfword bignum
+- The Lisp break loop (recovers from errors, presents `1:>` prompt)
+
+Known issues, deferred:
+- `(times very-large)` hangs or produces wrong results when the product exceeds 60 bits (the bignum kernel was designed for 30-bit halfwords; my port preserves that, and 32-bit fixnum × 32-bit fixnum can overflow it). Would need either real Phase 1h (60-bit halfwords) or a fix in `Ltimes`/`exarith` to chain to `mulbig`.
+- Stack-walking primitives (`showstack`, `baktrace`) error since the i386 frame walker doesn't translate to x86_64 (would need libunwind).
 
 ## Phase 4 — REPL
 

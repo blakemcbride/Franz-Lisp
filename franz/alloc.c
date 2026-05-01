@@ -1378,7 +1378,18 @@ markdp(p) register lispval p;
 	mrkdpcnt++;
 #endif
 ptr_loop:
+#if linux_x86_64
+	/* On x86_64 static atoms (nilatom, eofatom, Fixzero) live in
+	 * BSS, scattered around the address space rather than at a
+	 * predictable low offset. The original `p <= nil` check
+	 * effectively meant "below the heap"; replace it with an
+	 * explicit heap-range check. The mark bitmap doesn't cover
+	 * static memory, so non-heap pointers are simply not marked.
+	 */
+	if (!ATX_INHEAP(p)) return;
+#else
 	if(((uintptr_t)p) <= ((uintptr_t)nil)) return;	/*  do not mark special data types or nil=0  */
+#endif
 
         	
 	switch( TYPE(p) )

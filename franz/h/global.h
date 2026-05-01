@@ -162,11 +162,38 @@ extern char typetable[];  /*  the table with types for each page  */
  */
 #if linux_x86_64
 #define ATOX(a1)	((((uintptr_t)(a1)) - OFFSET) >> 10)
+/* TYPE classifies a pointer by its page-tag in typetable[]. On
+ * x86_64 we have to bounds-check against the heap range -- static
+ * data (nilatom, eofatom, Fixzero) lives below OFFSET, where ATOX's
+ * unsigned subtraction would underflow into a huge index and walk
+ * off the end of typetable[]. We also have to recognize the Fixzero
+ * range explicitly: inewint returns `Fixzero + n` for small fixnums,
+ * and arithmetic primitives need TYPE(...) == INT to recognize them.
+ *
+ * On the original i386 port these static arrays happened to live
+ * inside the type-table coverage (heap started at low addresses
+ * with OFFSET=0) and so the typetable lookup returned a sensible --
+ * if accidental -- value.
+ */
+extern long Fixzero[];
+#define ATX_INHEAP(a1) \
+    ((uintptr_t)(a1) >= OFFSET && \
+     (uintptr_t)(a1) < (uintptr_t)datalim)
+/* Negs[] in low.c sits immediately before Fixzero[] in BSS, giving
+ * a contiguous range from Negs[0] (=-1024) through Fixzero[1023]. */
+#define ATX_FIXNUM(a1) \
+    ((uintptr_t)(a1) >= (uintptr_t)(Fixzero - 1024) && \
+     (uintptr_t)(a1) <  (uintptr_t)(Fixzero + 1024))
+#define TYPE(a1) \
+    (ATX_INHEAP(a1) ? (typetable+1)[ATOX(a1)] \
+     : ATX_FIXNUM(a1) ? INT \
+     : UNBO)
+#define TYPL(a1) TYPE(a1)
 #else
 #define ATOX(a1)	((((uintptr_t)(a1)) - OFFSET) >> 9)
-#endif
 #define	TYPE(a1)	((typetable+1)[ATOX(a1)])
 #define	TYPL(a1)	((typetable+1)[ATOX(a1)])
+#endif
 #define SETTYPE(a1,b,c)   {if((itemp = ATOX(a1)) >= fakettsize) \
 			 { if(fakettsize >= TTSIZE) \
 			   {\

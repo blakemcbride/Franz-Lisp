@@ -29,15 +29,23 @@ struct vl { long high; long low; };
 /* emul -- compute (p * q) + r as a 64-bit value, split into high and
  * low halves. Both p and q are nominally 30-bit halfwords (so the
  * product fits in 60 bits + 30 = 61 bits -- well under 64).
+ *
+ * Important: the 2-slot output array is `long s[2]`, not `int s[2]`,
+ * because every caller in this file declares its result buffer as
+ * `long res[2]` or `struct vl { long high, low; }`. On 32-bit those
+ * widths happened to coincide; on x86_64 LP64 they don't, and writing
+ * 4-byte ints into 8-byte slots leaves the high half undefined. The
+ * downstream comparisons (`res[1] < 0`, `res[1] & 0x40000000`) need
+ * the slot width to be consistent.
  */
 void
 emul(p, q, r, s)
 int p, q, r;
-int s[2];
+long s[2];
 {
     long long l = (long long)p * (long long)q + (long long)r;
-    s[0] = (int)(l >> 32);
-    s[1] = (int)(l & 0xffffffffLL);
+    s[0] = (long)(l >> 32);
+    s[1] = (long)(int)(l & 0xffffffffLL);
 }
 
 /* ediv -- divide a 64-bit value (held in p[0]:p[1] high:low) by q.
@@ -47,11 +55,12 @@ int s[2];
  *
  * `err` was an overflow flag in the i386 version; we always set it
  * to 0 (no overflow) since the input range used by Franz Lisp keeps
- * the dividend under 2^61.
+ * the dividend under 2^61. p[0]/p[1] widths match emul's output --
+ * `long`, not `int`, on x86_64.
  */
 long
 ediv(p, q, err)
-int p[2];
+long p[2];
 long q;
 char *err;
 {
@@ -59,8 +68,8 @@ char *err;
                        | (unsigned int)p[1];
     long long quot = dividend / q;
     long long rem  = dividend % q;
-    p[0] = (int)rem;
-    p[1] = (int)quot;
+    p[0] = (long)(int)rem;
+    p[1] = (long)(int)quot;
     if (err) *err = 0;
     return (long)quot;
 }

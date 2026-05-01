@@ -20,7 +20,7 @@ make clean
 
 `make slow`, `make fast`, and `make install` are deliberately disabled — they invoke the multi-stage bootstrap (build liszt, dump a Lisp image), which depends on Phase 5 work (replace `dumplisp` with library auto-load).
 
-`rawlisp` currently builds as a valid x86_64 ELF and crashes when run — Phase 3 work is to walk through the kernel boot via gdb and fix initialization issues until it can read/print s-expressions.
+`rawlisp` boots and runs Lisp. `(+ 1 2)` returns `3`; `(fact 10)` returns `3628800`. The full Lisp library isn't loaded yet (Phase 5 work), so library-only functions (`princ`, `reverse`, `length`, `defun` etc.) error as undefined — but kernel built-ins (`eq`, `cons`, `car`, `mapcar`, `cond`, `def`) all work.
 
 The per-arch Makefile lives at `franz/linux_x86_64/Makefile` and uses modern gcc with porting-friendly flags (`-std=gnu89`, `-Wno-implicit-function-declaration`, `-Wno-int-conversion`, etc.). Phase 1 will tighten these as cast issues are fixed at the source level.
 
