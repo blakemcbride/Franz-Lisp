@@ -67,6 +67,12 @@
    (chk-eq "remainder"         (mod 17 5) 2)
    (chk-eq "1+"                (add1 41) 42)
    (chk-eq "1-"                (sub1 43) 42)
+   (chk-eq "abs neg"           (abs -7) 7)
+   (chk-eq "abs pos"           (abs 7) 7)
+   (chk-eq "abs zero"          (abs 0) 0)
+   (chk-eq "minusp t"          (minusp -3) t)
+   (chk-eq "minusp f"          (minusp 3) nil)
+   (chk-eq "minusp zero"       (minusp 0) nil)
    (chk-eq "min"               (min 3 5 1 4) 1)
    (chk-eq "max"               (max 3 5 1 4) 5)
    ;; comparisons
@@ -78,9 +84,6 @@
    (chk-eq "= diff"            (= 5 6) nil)
    (chk-eq "zerop t"           (zerop 0) t)
    (chk-eq "zerop f"           (zerop 1) nil)
-   ;; abs and minusp -- both broken on x86_64 (KNOWN-BUGS.md);
-   ;; results agree with kernel C implementations that have
-   ;; pre-existing 32-bit signed assumptions. Skipped here.
    ;; bignums: avoid bignum literals in source (reader bug for
    ;; >9-digit numbers); avoid storing two bignums in variables
    ;; for equality comparison (GC-during-allocation corrupts the

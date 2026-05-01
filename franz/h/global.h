@@ -312,12 +312,19 @@ union lispobj {
 	struct Vectorl vl;
 };
 
-#ifdef lint
+/* On x86_64 LP64 the K&R-style `extern lispval inewint();` doesnt
+ * promote int callers to long, so calls like `inewint(-temp)` from
+ * Lfm (where temp is `register int`) pass a 32-bit value where
+ * inewints body reads a 64-bit `long n`. The high bits arent zeroed
+ * on x86_64 SysV register passing, so n ends up with garbage above
+ * the int range -- breaking the `(n >= -1024 && n < 1024)` Fixzero
+ * shortcut and producing a fresh heap-allocated INT box per call.
+ *
+ * Route every call through Inewint, with an explicit (long) cast at
+ * the call site. (The lint-only branch already had this shape.)
+ */
 extern lispval Inewint();
 #define inewint(p) Inewint((long)(p))
-#else
-extern lispval inewint();
-#endif
 
 
 #include "sigtab.h"   /* table of all pointers to lisp data */

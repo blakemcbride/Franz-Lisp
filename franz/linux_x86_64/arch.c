@@ -29,8 +29,13 @@ extern struct types int_str;
  * to match the kernel-wide declarations in global.h/dfuncs.h.
  */
 
+/* Defined as `Inewint`, not `inewint`: every caller goes through the
+ * `inewint` macro in global.h that casts its arg to long first.
+ * Calling `Inewint` directly is fine too (the macro is just a
+ * type-promotion shim).
+ */
 lispval
-inewint(n)
+Inewint(n)
 long n;
 {
     register lispval ip;

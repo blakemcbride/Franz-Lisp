@@ -41,7 +41,8 @@ extern short 	ospeed;
 extern char	PC;
 extern char   *BC;
 extern char   *UP;
-extern lispval newvec(), inewint();
+extern lispval newvec();
+/* inewint declared in global.h as a macro; do not redeclare here. */
 
 /*
 /*	This routine will initialize the termcap for the lisp programs.
@@ -195,7 +196,7 @@ LIfranzcall()
 	 */
 	 {
 	     struct passwd *pw, *getpwnam();
-	     lispval newvec(), inewint();
+	     lispval newvec();
 	     struct argent *oldnp;
 
 	     pw = getpwnam((char *)verify(lbot[1].val,"int:franz-call: invalid name"));

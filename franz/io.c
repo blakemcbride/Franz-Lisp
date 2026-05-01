@@ -657,7 +657,14 @@ char *strbuf;
 		dmlad(temp,-1L,0L);
 
 	if(temp->s.CDR==0) {
-		result = inewint(temp->i);
+		/* Read the value through the int-typed s.I field so the
+		 * sign bit is correctly extended to long. Reading temp->i
+		 * (the union's long alias) picks up the 4 bytes of struct
+		 * padding above I -- always zero -- and gives a positive
+		 * value for any negative number. (Was hidden on i386 where
+		 * int and long were the same width.)
+		 */
+		result = inewint((long)(int)temp->s.I);
 		pruneb(np[-1].val);
 	}
 	np--;
