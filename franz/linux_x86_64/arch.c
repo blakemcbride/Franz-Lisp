@@ -177,18 +177,12 @@ nargs()
     return 0;
 }
 
-/* clinker -- the C-link entry that fasl-loaded compiled code resolves
- * its Lisp-function calls through. Unreferenced at runtime in our
- * build (no transfer tables get populated) but needed at link time
- * because clrtt() in fasl.c stores its address into transfer-table
- * slots.
+/* clinker -- the transfer-table link routine. Real implementation lives
+ * in clinkfns.c (CompilerPlan Phase 2). The kernel sees it via this
+ * extern; it's invoked when compiled code's transfer-table slots are
+ * first hit.
  */
-lispval
-clinker()
-{
-    return error("clinker called -- foreign-function fasl is not supported on linux_x86_64",
-                 FALSE);
-}
+extern lispval clinker();
 
 /* fasl/cfasl entry stubs -- referenced from sysat.c's function table
  * (Lcfasl, Lrmadd) and from fex3.c's Lgetaddress (dispget, gstab,

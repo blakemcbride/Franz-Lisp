@@ -247,7 +247,49 @@ literals) need a few targeted changes.
 **Done condition:** `gcc -c foo.c` produces a clean object file for
 all four test inputs. We don't load it yet.
 
-## Phase 2 — Port `clink.c` and friends to `franz/linux_x86_64/`
+## Phase 2 — Port `clink.c` and friends to `franz/linux_x86_64/`  *(DONE)*
+
+**Outcome achieved:** `franz/linux_x86_64/clinkfns.c` is built into
+rawlisp. `compiled.h` lives at `franz/h/compiled.h` (was a dangling
+symlink to the deleted `cliszt/in-c/`). liszt's emitted C now compiles
+with just `-I franz/h` against the canonical kernel headers.
+
+What was done:
+
+  * Ported `reference/cliszt-i386/clinkfns.c` (the newer of the two
+    almost-identical versions; it has `clinker` as the transfer-table
+    entry, matching what the compiled output and `compiled.h` macros
+    reference, plus a `set_redef` helper). Same widenings as the
+    kernel got in Phase 1: `int *bind_lists` -> `long *bind_lists`,
+    the `*(int *)lc_org = (int)bind_lists` → `*(long *)lc_org =
+    (long)bind_lists` for the GC-bind-list pointer that the linker
+    table threads onto, and `int *iptr` → `long *iptr` for the loop
+    that initializes linker-table entries to -1.
+  * `compiled.h` copied into `franz/h/` (replacing a dangling
+    symlink). `Lastfix` was already defined in `franz/low.c`.
+  * `arch.c`'s `clinker` stub removed; the real one from clinkfns.c
+    takes over.
+  * Added `clinkfns.c` to `ArchSrc`/`ArchObj` in
+    `franz/linux_x86_64/Makefile`.
+  * `clinkfns.c` includes `<stddef.h>` before glibc's `<stdio.h>`
+    -- a minor glibc-vs-K&R ordering thing.
+
+Verified:
+
+```sh
+$ make rawlisp                                # rawlisp builds cleanly
+$ echo "(+ 1 2)" | bin/lisp                   # standard library still works
+3
+$ echo "(liszt -S test-add2)" | bin/liszt     # liszt still compiles to C
+$ gcc -c -fPIC -std=gnu89 ... -I franz/h test-add2.c
+$ file test-add2.o
+test-add2.o: ELF 64-bit LSB relocatable, x86-64, ...
+```
+
+So compiled output is now build-clean against the kernel headers and
+the kernel exports the entry points (`clink`, `clinker`, `set_redef`).
+Phase 3 wires up `dlopen` so the resulting `.so` can actually be
+loaded into a running rawlisp.
 
 **Outcome:** `clink`, the support functions in `clinkfns.c`, and
 `cinit.c` are part of the kernel build, link cleanly into rawlisp,

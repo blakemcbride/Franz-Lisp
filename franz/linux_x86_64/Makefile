@@ -82,8 +82,8 @@ smoke: ../lisp.o
 #   arch.c -- inewint/blzero/prunei, PORTABLE_FRAME helpers, tynames,
 #             holbeg/holend globals, and stubs for what doesn't
 #             translate (nargs, stack walkers, polyev)
-ArchSrc = callg.c bignum.c arch.c
-ArchObj = callg.o bignum.o arch.o
+ArchSrc = callg.c bignum.c arch.c clinkfns.c
+ArchObj = callg.o bignum.o arch.o clinkfns.o
 
 # Build a single arch-specific .o.
 %.o: %.c
