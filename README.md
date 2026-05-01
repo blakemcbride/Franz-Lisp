@@ -3,6 +3,8 @@
 Franz Lisp (Opus 38.92), the Berkeley dialect of Lisp from the early
 1980s, ported to modern Linux on x86_64.
 
+Project home: <https://github.com/blakemcbride/Franz-Lisp>
+
 ```
 $ bin/lisp
 Franz Lisp, Opus 38
@@ -24,6 +26,9 @@ inc
 ## Quick start
 
 ```sh
+git clone https://github.com/blakemcbride/Franz-Lisp.git
+cd Franz-Lisp
+
 sudo dnf install gcc make glibc-devel ncurses-devel    # Fedora/RHEL
 # or:
 sudo apt install build-essential libncurses-dev        # Debian/Ubuntu
@@ -112,6 +117,11 @@ BUILD.md              Build instructions and troubleshooting.
 PortPlan.md           The porting plan, with each phase's outcome.
 CLAUDE.md             Working notes for AI-assisted development.
 ```
+
+## Issues and contributions
+
+Bug reports, patches, and questions go through the project's GitHub
+page: <https://github.com/blakemcbride/Franz-Lisp/issues>.
 
 ## History and credit
 
