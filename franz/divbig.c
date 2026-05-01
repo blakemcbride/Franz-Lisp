@@ -14,13 +14,18 @@ static char *rcsid =
 #include "global.h"
 
 #define b 0x40000000
-#define toint(p) ((int) (p))
+/* toint is used to compute the byte span between stack pointers
+ * for an alloca() size; (uintptr_t) keeps the high address bits so
+ * the differences come out correct on 64-bit. */
+#define toint(p) ((uintptr_t) (p))
 
 divbig(dividend, divisor, quotient, remainder)
 lispval dividend, divisor, *quotient, *remainder;
 {
-	register *ujp, *vip;
-	int *alloca(), d, negflag = 0, m, n, carry, rem, qhat, j;
+	/* limb pointers (`ujp`, `vip`) are pointer-wide longs to match
+	 * the Lisp argument-stack slots returned by sp() on 64-bit. */
+	register long *ujp, *vip;
+	int d, negflag = 0, m, n, carry, rem, qhat, j;
 	int borrow, negrem = 0;
 	long *utop = sp(), *ubot, *vbot, *qbot;
 	register lispval work; lispval export();
@@ -257,9 +262,9 @@ lispval
 Lhaipar()
 {
 	register lispval work;
-	register n;
-	register int *top = sp() - 1;
-	register int *bot;
+	register int n;
+	register long *top = sp() - 1;
+	register long *bot;
 	int mylen;
 
 	/*chkarg(2);*/
@@ -327,9 +332,9 @@ Ibiglsh(bignum,count,mode)
 lispval bignum, count;
 {
 	register lispval work;
-	register n;
-	register int *top = sp() - 1;
-	register int *bot;
+	register int n;
+	register long *top = sp() - 1;
+	register long *bot;
 	int mylen, guard = 0, sticky = 0, round = 0;
 	lispval export();
 

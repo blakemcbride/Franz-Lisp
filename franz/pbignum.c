@@ -16,9 +16,8 @@ pbignum(current, useport)
 register lispval current;
 register FILE *useport;
 {
-	long  *top, *bot, *work, negflag = 0;
-	char *alloca();
-	register int *digitp;
+	long *top, *bot, *work, negflag = 0;
+	register long *digitp;
 	Keepxs();
 
 	/* copy bignum onto stack */
@@ -29,13 +28,14 @@ register FILE *useport;
 
 	bot = sp();
 	if (top==bot) {
-		fprintf(useport,"%d",*bot);
+		fprintf(useport,"%ld",*bot);
 		Freexs();
 		return;
 	}
 
-	/* save space for printed digits*/
-	work = (int *)alloca((top-bot)*2*sizeof(int));
+	/* save space for printed digits (each is a base-10^9 limb,
+	 * i.e. fits in a long) */
+	work = (long *)alloca((top-bot)*2*sizeof(long));
 	if( *bot < 0) {
 		negflag = 1;
 		dsneg(top,bot);
@@ -46,11 +46,11 @@ register FILE *useport;
 		*digitp = dodiv(top,bot);
 		if(*bot==0) bot += 1;
 	}
-	
+
 	/* print them out */
 
 	if(negflag) putc('-',useport);
-	fprintf(useport,"%d",*--digitp);
-	while ( digitp > work) fprintf(useport,"%.09d",*--digitp);
+	fprintf(useport,"%ld",*--digitp);
+	while ( digitp > work) fprintf(useport,"%.09ld",*--digitp);
 	Freexs();
 }
