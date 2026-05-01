@@ -238,6 +238,30 @@ the old `.so`'s memory.
 | `CC` | C compiler used by `lisplib/lisztcc`. Defaults to `cc`. Set to `clang` if you want clang. |
 | `TMPDIR` | temp dir liszt uses for intermediate `.c` files. Defaults to `/tmp`. |
 
+## Running the test suite
+
+The interpreter ships with a regression suite covering core types,
+arithmetic, lists, control flow, definitions, macros, higher-order
+calls, strings, properties, and error handling — currently 131 cases
+across nine sections.
+
+```sh
+$ bin/test
+… (output elided)
+131 passed, 0 failed
+ALL TESTS PASSED
+```
+
+Exit code is 0 on pass, 1 on any failure, 3 if the run didn't reach
+the summary. The test sources live in `tests/`:
+
+- `tests/harness.l` — the `chk-eq` / `chk-err` macros and counters.
+- `tests/test-all.l` — the cases. Designed to also be loadable via
+  the compiler so the same suite can validate `bin/liszt` output
+  later.
+
+Known limitations are catalogued in [KNOWN-BUGS.md](KNOWN-BUGS.md).
+
 ## What's not in this guide
 
 - The compiler's command-line flags (`-S`, `-Q`, `-w`, `-x`, `-i`,

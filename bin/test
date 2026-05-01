@@ -1,0 +1,44 @@
+#!/bin/sh
+# bin/test -- run the comprehensive interpreter test suite.
+#
+# Loads tests/harness.l and tests/test-all.l into bin/lisp. The
+# top-level (run-all-tests) at the end of test-all.l drives the
+# actual run; this wrapper just feeds the inputs and forwards exit
+# code based on PASS/FAIL grep at the end.
+#
+# A future bin/test --compiled mode will compile test-all.l with
+# liszt and run the .so version, exercising the same cases through
+# the compiler.
+
+set -eu
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+ROOT="${FRANZ_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+
+LISP="${ROOT}/bin/lisp"
+HARNESS="${ROOT}/tests/harness.l"
+SUITE="${ROOT}/tests/test-all.l"
+
+if [ ! -x "$LISP" ]; then
+    echo "test: bin/lisp not found at $LISP -- run 'make rawlisp' first." >&2
+    exit 2
+fi
+
+# Pipe the load forms through bin/lisp. Capture output so we can
+# both show it and decide an exit code from the summary line.
+OUT=$(printf "(load (quote %s))\n(load (quote %s))\n(run-all-tests)\n" \
+              "$HARNESS" "$SUITE" \
+      | "$LISP" 2>&1)
+
+# Show the run.
+echo "$OUT"
+
+# Exit 0 iff "ALL TESTS PASSED" appears in the output.
+if printf '%s\n' "$OUT" | grep -q "ALL TESTS PASSED"; then
+    exit 0
+elif printf '%s\n' "$OUT" | grep -q "SOME TESTS FAILED"; then
+    exit 1
+else
+    echo "test: summary line missing -- run did not finish cleanly" >&2
+    exit 3
+fi

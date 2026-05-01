@@ -86,6 +86,7 @@ BUILD.md              Build instructions and troubleshooting.
 RUNNING.md            How to use the interpreter and compiler.
 PortPlan.md           The interpreter porting plan, by phase.
 CompilerPlan.md       The compiler porting plan, by phase.
+KNOWN-BUGS.md         Catalog of known issues and workarounds.
 CLAUDE.md             Working notes for AI-assisted development.
 ```
 
