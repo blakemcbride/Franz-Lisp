@@ -40,4 +40,11 @@ export LISPLIB CLISZT FRANZ_ROOT
 # to rawlisp. After init runs, the toplevel loop calls user-top-level
 # (= lisztinit), which inspects (command-line-args) and either runs a
 # compile or drops to an interactive prompt.
-exec cat "$INIT" - | "$RAWLISP" "$@"
+#
+# The trailing `(reset)` form unwinds rawlisp's initial C-level Ntpl
+# reader back to main's F_RESET frame so the for(EVER) loop in
+# lisp.c re-applies 'top-level -- which by now has been (putd ...)'d
+# to the Lisp-side franz-top-level. franz-top-level then notices
+# that user-top-level = lisztinit and calls it. Without (reset),
+# Ntpl reads stdin to EOF and exits, and lisztinit never runs.
+exec sh -c "cat '$INIT'; echo '(reset)'; cat -" | "$RAWLISP" "$@"

@@ -453,12 +453,18 @@ Lnwritn()
 
 	port = okport(handy,okport(Vpoport->a.clb,stdout));
 #if linux_x86_64
-	/* glibc FILE internals are opaque. ftello returns the current
-	 * stream position, which for write-only string ports (the usual
-	 * caller, see fstopen/fmemopen) is the byte count we want.
+	/* glibc FILE internals are opaque, and ftello returns the
+	 * full file offset rather than the column-on-current-line that
+	 * Franz Lisp expects. Liszt's d-stringout uses (- 60 (nwritn))
+	 * to compute how many chars of a string fit before wrapping; if
+	 * that goes negative it loops forever (writing `nil` past the
+	 * end of the char list). Returning 0 means "always assume we
+	 * are at column zero" -- d-stringout then writes the whole
+	 * string in one go, and the pretty-printer in pp.l produces
+	 * slightly wider output but stays correct. A real column
+	 * tracker would need to intercept every write to the port.
 	 */
-	value = (long)ftello(port);
-	if (value < 0) value = 0;
+	value = 0;
 #elif defined(torek_stdio)
 	value = port->_p - port->_bf._base;
 #else
