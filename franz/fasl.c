@@ -21,7 +21,7 @@ static char *rcsid =
 #include "structs.h"
 #include "frame.h"
 
-#if i386_4_3
+#if i386_4_3 || linux_x86_64
 #define in_c 1
 #endif
 

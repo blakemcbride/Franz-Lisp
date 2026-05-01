@@ -1,2 +1,2 @@
-/* this file created by ../../lispconf */
-#define i386_4_3 1
+/* this file created by ./lispconf */
+#define linux_x86_64 1

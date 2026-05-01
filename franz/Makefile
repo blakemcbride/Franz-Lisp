@@ -7,12 +7,11 @@
 # dependent Makefiles (subdirectories vax/ or 68k/)
 
 
-Includes = h/config.h 	h/global.h 	h/aout.h 	h/vaxframe.h \
+Includes = h/config.h 	h/global.h 	h/aout.h \
 	h/catchfram.h 	h/dfuncs.h 	h/gtabs.h 	h/sigtab.h \
 	h/chars.h 	h/frame.h 	h/lfuncs.h 	h/structs.h \
 	h/chkrtab.h 	h/gc.h 		h/lispo.h 	h/types.h \
-	h/lconf.h	h/ltypes.h	h/68kframe.h	h/hpagsiz.h\
-	h/duallispo.h	h/dualaout.h	h/tahoeframe.h
+	h/lconf.h	h/ltypes.h	h/compiled.h
 
 AllSrc = Makefile ${Includes}
 

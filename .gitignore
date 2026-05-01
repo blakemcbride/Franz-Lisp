@@ -1,0 +1,17 @@
+# Build artifacts.
+*.o
+*.x
+*.s.tmp
+rawlisp
+nlisp
+snlisp
+nliszt
+snliszt
+
+# Editor/tool droppings.
+TAGS
+tags
+*~
+.\#*
+\#*\#
+make.log

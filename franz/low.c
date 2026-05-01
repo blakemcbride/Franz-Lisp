@@ -10,7 +10,6 @@
  */
 
 #include "global.h"
-#include "hpagsiz.h"
 
 extern char nilpname[];
 struct atom nilatom = { nil, nil, nil, (struct atom *) CNIL, nilpname };

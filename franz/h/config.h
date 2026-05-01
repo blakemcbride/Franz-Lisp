@@ -1,268 +1,117 @@
-/* Modified by RMT 11 May 1992 for 386bsd */
-
-/*					-[Thu Mar  3 15:57:51 1983 by jkf]-
- * 	config.h			$Locker:  $
- * configuration dependent info
+/* config.h -- Linux x86_64 port of Franz Lisp.
  *
- * $Header: config.h,v 1.16 87/12/14 18:33:31 sklower Exp $
+ * Originally a multi-platform configuration file (vax/tahoe/68k/sun/
+ * dual/pixel/mc500/lisa/i386/vms). All non-Linux platforms have been
+ * stripped; see git history for the original.
  *
- * (c) copyright 1982, Regents of the University of California
- */
- 
-/* 
- * this file contains parameters which each site is likely to modify
- * in order to personalize the configuration of Lisp at their site.
- * The typical things to modifiy are:
- *    [optionally] turn on GCSTRINGS
- *    [optionally] provide a value for SITE 
- */
-
-/*
- * The type of machine and os this is to run on will come from
- * the file lconf.h.  The lconf.h file is created by the shell script
- * 'lispconf' in the directory ../..
- * lconf.h will define exactly one of these symbols:
- *  vax_4_2 vax_4_1c vax_4_1a vax_4_1 vax_unix_ts vax_eunice_vms
- *  sun_4_2 sun_4_1c sun_unisoft dual_unisoft pixel_unisoft lisa_unisys3
- *  mc500_2_0
- * and i386_4_3
- * Note that __NetBSD__ is considered a subtype of i386_4_3 even
- * though it's not really 4.3.
+ *   Header in original distribution:
+ *   $Header: config.h,v 1.16 87/12/14 18:33:31 sklower Exp $
+ *   (c) copyright 1982, Regents of the University of California
+ *   Modified by RMT 11 May 1992 for 386bsd
+ *   Linux x86_64 port: 2026
+ *
+ * The lconf.h file (created by ./lispconf) is included for forward
+ * compatibility with future arch additions, but right now it just
+ * #define's linux_x86_64 1.
  */
 
 #include "lconf.h"
 
+#if !linux_x86_64
+#error "Only linux_x86_64 is supported in this port. Run ./lispconf linux_x86_64."
+#endif
 
-/* GCSTRINGS - define this if you want the garbage collector to reclaim
- *  strings.  It is not normally set because in typical applications the
- *  expense of collecting strings is not worth the amount of space
- *  retrieved
+
+/* GCSTRINGS -- if defined, the GC reclaims strings. Off by default
+ * because in typical usage the cost of collecting strings exceeds the
+ * space recovered.
  */
- 
 /* #define GCSTRINGS */
 
-/*
- * set up the global defines based on the choice above
- * the global names are
- * operating system:
- *		  os_unix
- *		     os_4_1, os_4_1a, os_4_1c, os_4_2, os_unix_ts
- *		  os_vms
+
+/* ====================================================================
+ * Machine identity
+ * ==================================================================== */
+
+#define m_x86_64        1
+#define MACHINE         "x86_64"
+
+/* OFFSET is the base address subtracted from a Lisp pointer when
+ * computing its page index in the type table (see ATOX in global.h).
+ *
+ * On the original i386 BSD port this was 0 because the heap began
+ * near address 0. Under Linux ASLR no such guarantee holds; the heap
+ * is mmap'd at runtime and OFFSET becomes a runtime variable in
+ * Phase 1 of the port. We leave the macro defined to 0 here so the
+ * existing code compiles; alloc.c/data.c will override at startup.
+ */
+#define OFFSET          0
+
+
+/* ====================================================================
+ * Operating system identity
+ * ==================================================================== */
+
+#define os_unix         1
+#define os_linux        1
+#define os_4_3          1   /* enables RTPORTS (runtime FILE* allocation) */
+#define OS              "unix"
+
+#define DOMAIN          "ucb"
+
+/* SITE -- value of (sys:gethostname). On Linux this can be discovered
+ * at runtime via gethostname(2), so leave it undefined here.
+ */
+/* #define SITE        "unknown-site" */
+
+
+/* ====================================================================
+ * Runtime feature flags
+ * ==================================================================== */
+
+/* PORTABLE         -- the Lisp value `nil` is &nilatom (a real address),
+ *                     not the integer 0. Required when the heap can live
+ *                     anywhere in the address space.
+ *
+ * PORTABLE_FRAME   -- non-local-jump frames use setjmp() rather than
+ *                     hand-written register-saving asm.
+ *
+ * SPISFP           -- the Lisp argument-passing stack pointer is a
+ *                     pure software variable, never the C stack pointer.
+ *
+ * RTPORTS          -- FILE* objects are allocated at runtime (true on
+ *                     glibc; the alternative was the old _iob[] array).
+ *
+ * torek_stdio      -- use the getc/ungetc-based peekc() rather than
+ *                     poking FILE internals directly. Required on glibc
+ *                     where _cnt/_ptr are unavailable.
+ */
+#define PORTABLE        1
+#define PORTABLE_FRAME  1
+#define SPISFP          1
+#define RTPORTS         1
+#define torek_stdio     1
+
+/* SIGTYPE -- return type of signal handlers. void on glibc. */
+#define SIGTYPE         void
+
+/* NILIS0 deliberately NOT defined: nil is &nilatom, not (lispval)0,
+ * because the heap doesn't start at address 0 under ASLR. See PORTABLE
+ * branches in global.h.
  */
 
-/* OFFSET -  this is the offset to the users address space. */
-/* NB: this is not necessarily tied to the hardware.  Pixel
-   informs us that when they put up 4.1 the offsetis likely
-   to change */
-
-#if vax_4_1 || vax_4_1a || vax_4_1c || vax_4_2 || vax_4_3 || vax_unix_ts || vax_eunice_vms
-#define m_vax 1
-#endif
-
-#if tahoe_4_3
-#define m_tahoe 1
-#endif
-
-#if sun_4_2beta || sun_4_2 || sun_4_1c
-#define m_68k		1
-#define OFFSET		0x8000
-#endif
-
-#if sun_unisoft
-#define m_68k		1
-#define	OFFSET		0x40000
-#endif
-
-#if dual_unisoft
-#define m_68k		1
-#define m_68k_dual	1
-#define OFFSET		0x800000
-#endif
-
-#if pixel_unisoft
-#define m_68k		1
-#define OFFSET		0x20000
-#endif
-
-#if lisa_unisys3
-#define m_68k		1
-#define OFFSET		0x20000
-#define unisys3botch	1
-#define os_unix_ts	1
-#endif
-
-#if mc500_2_0
-#define OFFSET 0
-#define m_68k 1
-#define os_masscomp 1
-#endif
-
-#if i386_4_3
-#define OFFSET 0
-#define m_i386 1
-#ifdef __NetBSD__
-#define a_magic a_midmag
-#endif
-#endif
-
-/* next the operating system */
-#if vax_4_1 || vax_4_1a || vax_4_1c || vax_4_2 || vax_4_3 || vax_unix_ts || m_68k || tahoe_4_3 || i386_4_3
-#define os_unix		1
-#endif
-
-#if vax_4_1
-#define os_4_1		1
-#endif
-#if vax_4_1a
-#define os_4_1a		1
-#endif
-#if vax_4_1c || sun_4_1c
-#define os_4_1c 	1
-#endif
-#if vax_4_2 || sun_4_2 || sun_4_2beta
-#define os_4_2	 	1
-#endif
-#if vax_4_3 || tahoe_4_3 || i386_4_3
-#define os_4_3		1
-#endif
-#if vax_unix_ts
-#define os_unix_ts 	1
-#endif
-#if vax_eunice_vms
-#define os_vms		1
-#endif
-
-#if sun_unisoft || dual_unisoft || pixel_unisoft
-#define os_unisoft 1
-#endif
-
-/* MACHINE -  this is put on the (status features) list */
-#if m_68k
-#define MACHINE "68k"
-#define PORTABLE
-#endif
-
-#if i386_4_3
-#define PORTABLE
-#endif
-
-/* RTPORTS -- this O.S. allocates FILE *'s at run-time */
-#if os_4_3
-#define RTPORTS 1
-#endif
-
-#if m_vax
-#define MACHINE "vax"
-#define NILIS0	1
-#endif
-
-#if m_tahoe
-#define MACHINE "tahoe"
-#define NILIS0	1
-#endif
-
-#if m_i386
-#define MACHINE "i386"
-#define NILIS0	1
-#endif
-
-/*
-** NILIS0 -- for any UNIX implementation in which the users
-**	address space starts at 0 (like m_vax, above). 
-**
-** NPINREG -- for the verison if lisp that keeps np and lbot in global
-**	registers.  On the 68000, there is a special `hacked' version
-**	of the C compiler that is needed to do this.
-**
-** #define NILIS0		1
-** #define NPINREG		1
-*/
-
-/*
- * SPISFP -- this is to indicate that the stack and frame pointer
- * are the same, or at least that you can't pull the same shenanigans
- * as on the vax or sun by pushing error frames at the end of C
- * frames and using alloca.  This should make life easier for
- * a native VMS version or IBM or RIDGE or Bellmac-32.
- * #define SPISFP 1
+/* NPINREG deliberately NOT defined: we don't keep np/lbot in dedicated
+ * machine registers.
  */
 
-#if sun_4_2beta || i386_4_3
-#define SPISFP 1
-#endif
 
-#if m_vax || m_tahoe
-#define OFFSET		0x0
-#define NPINREG		1
-#endif
+/* ====================================================================
+ * Heap sizing
+ * ==================================================================== */
 
-
-
-
-/* OS -  this is put on the (status features) list */
-#if os_unix
-#define OS      "unix"
-#endif
-#if os_vms
-#define OS 	"vms"
-#endif
-
-/* DOMAIN - this is put on the (status features) list and
- * 	is the value of (status domain)
+/* TTSIZE -- absolute limit, in 512-byte pages, on the size of the Lisp
+ * heap. Original i386 default was 6120 (~3 MB). Modest by modern
+ * standards; we'll revisit in Phase 1 once 64-bit struct sizing is
+ * settled. Recompile alloc.c and data.c after changing.
  */
-#define DOMAIN  "ucb"
-
-/* SITE - the name of the particular machine this lisp is running on
- *    this value is available via (sys:gethostname).
- *    On 4.1a systems it is possible to determine this dynamically cheaply
- */
-#if ! (os_4_1a || os_4_1c || os_4_2 || os_4_3)
-#define SITE    "unknown-site"
-#endif
-
-
-/*  TTSIZE is the absolute limit, in pages (both text and data), of the
- * size to which the lisp system may grow.
- * If you change this, you must recompile alloc.c and data.c.
- */
-#if (sun_4_2 || sun_4_2beta || HOLE)
-#define TTSIZE 10216
-#else
-#define TTSIZE 6120
-#endif
-
-#if m_vms 
-#undef TTSIZE
-#define TTSIZE 10216
-#define FREESIZE 512 * 10000
-#endif 
-
-/* 
- * There are several dependencies on the internals of the standard i/o
- * library (yuk).  If torek_stdio is defined, we're using Chris Torek's
- * detoxified version.
- */
-
-#if i386_4_3
-#define torek_stdio 1
-#endif
-
-/* 
- * If PORTABLE_FRAME is defined, the frames for non-local jumps are
- * defined in C using setjmp(), instead of in assembler with intimate
- * knowledge of the registers.
- */
-
-#if i386_4_3
-#define PORTABLE_FRAME 1
-#endif
-
-/* 
- * SIGTYPE is the type returned by signal handlers.
- */
-
-#if i386_4_3
-#define SIGTYPE void
-#else
-#define SIGTYPE int
-#endif
+#define TTSIZE          6120
