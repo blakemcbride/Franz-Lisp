@@ -47,4 +47,13 @@ export LISPLIB CLISZT FRANZ_ROOT
 # to the Lisp-side franz-top-level. franz-top-level then notices
 # that user-top-level = lisztinit and calls it. Without (reset),
 # Ntpl reads stdin to EOF and exits, and lisztinit never runs.
-exec sh -c "cat '$INIT'; echo '(reset)'; cat -" | "$RAWLISP" "$@"
+#
+# With args (compile-and-exit), lisztinit calls (exit 0) when the
+# compile is done; we feed init+reset and close stdin. With no args
+# (interactive REPL), append `cat -` so the user's terminal becomes
+# stdin once init has run.
+if [ $# -gt 0 ]; then
+    exec sh -c "cat '$INIT'; echo '(reset)'" | "$RAWLISP" "$@"
+else
+    exec sh -c "cat '$INIT'; echo '(reset)'; cat -" | "$RAWLISP"
+fi
