@@ -21,7 +21,13 @@ static char *rcsid =
  
 # define NUMWORDS TTSIZE * 128  /*  max number of words in P0 space  */
 # define BITQUADS TTSIZE * 2	/*  length of bit map in quad words  */
+# if m_x86_64
+/* 64-bit longs: 64 longs/page (LBPG=512), 1 bit/long, 32 bits/int.
+ * 64 / 32 = 2 ints/page in the bitmap. */
+# define BITLONGS TTSIZE * 2
+# else
 # define BITLONGS TTSIZE * 4	/*  length of bit map in long words  */
+# endif
 
 # ifdef vax
 # define ftstbit	asm("	ashl	$-2,r11,r3");\
@@ -48,6 +54,22 @@ static char *rcsid =
 # define oksetbit	{bitmapi[r] |= s;}
 # endif
 
+# if m_x86_64
+/* x86_64: sizeof(long)==8, 32-bit bitmap ints. One bit per long word.
+ *   byte_addr -> bitmap-int index:   (p - OFFSET) >> 8
+ *     (256 bytes == 32 longs == 1 bitmap int)
+ *   byte_addr -> bit-within-int:     ((p - OFFSET) >> 3) & 31
+ *     (>>3 to long index, &31 to bit position)
+ * OFFSET is currently 0; Phase 1b will replace it with an mmap'd
+ * heap base. The (uintptr_t) cast is required to avoid truncating
+ * a 64-bit pointer to int.
+ */
+# define ftstbit	if( readbit(p) ) return; oksetbit;
+# define setbit		{bitmapi[((uintptr_t)p - OFFSET)>>8] |= bitmsk[(((uintptr_t)p - OFFSET) >> 3)&31];}
+# define readbit(p)	((int)bitmapi[r=((uintptr_t)p - OFFSET)>>8] & (s=bitmsk[(((uintptr_t)p - OFFSET)>>3)&31]))
+# define oksetbit	{bitmapi[r] |= s;}
+# endif
+
 /*	Unused bit macros
 # define lookbit(p)	(bbitmap[(int)p>>5] & bitmsk[((int)p>>2) & 7])
 # define readchk(p)	((int)bitfre[(int)p>>5] & bitmsk[((int)p>>2)&7])
@@ -56,8 +78,13 @@ static char *rcsid =
 
 # define roundup(x,l)	(((x - 1) | (l - 1)) + 1) 
 
-# define MARKVAL(v)	if(((int)v) >= (int)beginsweep) markdp(v);
+# define MARKVAL(v)	if(((uintptr_t)v) >= (uintptr_t)beginsweep) markdp(v);
+# if m_x86_64
+/* (p - OFFSET) >> 8: byte address -> bitmap-int index. See setbit. */
+# define ATOLX(p)	((((uintptr_t)p)-OFFSET)>>8)
+# else
 # define ATOLX(p)	((((int)p)-OFFSET)>>7)
+# endif
 
 /* the Vax hardware only allows 2^16-1 bytes to be accessed with one
  * movc5 instruction.  We use the movc5 instruction to clear the 
@@ -1300,7 +1327,7 @@ markit(p) lispval *p; { markdp(*p); }
  */
 markdp(p) register lispval p;
 	{
-#if m_tahoe || m_i386
+#if m_tahoe || m_i386 || m_x86_64
 	register int r, s;	/* (goes with non-asm readbit, oksetbit) */
 #endif
 /*	register hsize, hcntr;						 */

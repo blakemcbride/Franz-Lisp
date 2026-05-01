@@ -9,6 +9,7 @@
 
 
 #include <stdio.h>
+#include <stdint.h>             /* uintptr_t/intptr_t for the port */
 #include "config.h"
 #include "ltypes.h"
 #ifdef UNIXTS
