@@ -198,7 +198,7 @@ LIfranzcall()
 	     lispval newvec(), inewint();
 	     struct argent *oldnp;
 
-	     pw = getpwnam(verify(lbot[1].val,"int:franz-call: invalid name"));
+	     pw = getpwnam((char *)verify(lbot[1].val,"int:franz-call: invalid name"));
 	     if(pw)
 	     {
 		 handy =  newvec(4 * sizeof(long));
@@ -230,7 +230,7 @@ LIfranzcall()
 	 	return(inewint(time(0)));
 
 	 case fc_chmod:
-	 	return(inewint(chmod(verify(lbot[1].val,
+	 	return(inewint(chmod((char *)verify(lbot[1].val,
 						"i:fc,chmod: non string"),
 				     lbot[2].val->i)));
 
@@ -242,7 +242,7 @@ LIfranzcall()
 		    struct argent *oldnp;
 		    struct stat statbuf;
 
-		    if(stat(verify(lbot[1].val,"ifc:stat bad file name "),
+		    if(stat((char *)verify(lbot[1].val,"ifc:stat bad file name "),
 		    	    &statbuf)
 			!= 0) return(nil);	/* nil on error */
 		    handy = newvec(12 * sizeof(long));

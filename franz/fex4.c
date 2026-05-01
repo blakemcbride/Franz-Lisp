@@ -37,7 +37,12 @@ Lsyscall() {
 	register struct argent *aptr;
 	register int acount = 1;
 	extern syscall();
-	int args[50];
+	/* args are passed to callg_ which then forwards to syscall(2);
+	 * each slot must be wide enough to hold a pointer. On Linux LP64
+	 * that is `long`. Phase 1g will rewrite callg_ for the x86_64
+	 * ABI; the per-slot widening is correct for either ABI.
+	 */
+	long args[50];
 	Savestack(3);
 
 	/* there must be at least one argument */
@@ -55,16 +60,16 @@ Lsyscall() {
 		temp = aptr->val;
 		switch(TYPE(temp)) {
 
-			case ATOM:	
-				args[acount++] = (int)temp->a.pname;
+			case ATOM:
+				args[acount++] = (long)temp->a.pname;
 				break;
 
 			case STRNG:
-				args[acount++] = (int) temp;
+				args[acount++] = (long) temp;
 				break;
 
 			case INT:
-				args[acount++] = (int)temp->i;
+				args[acount++] = (long)temp->i;
 				break;
 
 			default:
@@ -157,11 +162,11 @@ lispval
 Nstatus()
 {
 	register lispval handy,curitm,valarg;
-	int indx,ctim;
+	int indx;
+	time_t ctim;		/* 64-bit on Linux; matches time(2)/ctime/localtime sigs */
+	struct tm *lctime;	/* (libc declares localtime() in <time.h>) */
 	int typ;
 	char *cp;
-	char *ctime();
-	struct tm *lctime,*localtime();
 	extern unsigned char *ctable;
 	extern int dmpmode;
 	extern lispval chktt();
@@ -291,7 +296,7 @@ lispval curnam,curval;
 {
 	register lispval curitm,head;
 	lispval Istsrch(),Iaddstat();
-	int badmr(),clrtt();
+	SIGTYPE badmr(int), clrtt(int);
 	extern int uctolc, dmpmode, bcdtrsw, gcstrings;
 
 	curitm = Istsrch(curnam);

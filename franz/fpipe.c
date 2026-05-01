@@ -111,7 +111,7 @@ FILE *p;
 	error("Ran out of Ports",FALSE);
 }
 
-#endif	RTPORTS
+#endif	/* RTPORTS */
 
 FILE *
 fstopen(base,count,flag)

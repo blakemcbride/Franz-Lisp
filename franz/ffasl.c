@@ -13,11 +13,32 @@ static char *rcsid =
 
 #include "global.h"
 
+/* `verify` is a general-purpose ATOM/STRNG -> char* helper used all
+ * over the kernel; only its presence in ffasl.c is incidental. Keep
+ * it outside the linux_x86_64 gate so the rest of the kernel can
+ * link.
+ */
+lispval
+verify(in,error)
+register lispval in;
+char *error;
+{
+	for(EVER) {
+		switch(TYPE(in)) {
+		case STRNG:
+			return(in);
+		case ATOM:
+			return((lispval)in->a.pname);
+		}
+		in = errorh1(Vermisc,error,nil,TRUE,0,in);
+	}
+}
+
 /* Foreign-function FASL is deferred in the Linux x86_64 port
  * (see PortPlan.md). The original implementation reads BSD a.out
  * files directly to splice compiled C code into the running Lisp;
- * a Linux replacement would use ELF and dlopen. Until then this
- * translation unit is empty.
+ * a Linux replacement would use ELF and dlopen. Until then most of
+ * this translation unit is empty.
  */
 #if !linux_x86_64
 
@@ -352,23 +373,6 @@ ungstab()
 		fvirgin = 1;
 	}
 }
-
-lispval
-verify(in,error)
-register lispval in;
-char *error;
-{
-	for(EVER) {
-		switch(TYPE(in)) {
-		case STRNG:
-			return(in);
-		case ATOM:
-			return((lispval)in->a.pname);
-		}
-		in = errorh1(Vermisc,error,nil,TRUE,0,in);
-	}
-}
-
 
 /* extern	int fvirgin; */
 			/* declared in ffasl.c tells if this is original

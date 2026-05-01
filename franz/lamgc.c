@@ -61,7 +61,13 @@ Lgcstat()
 	    case 0:  if((gcstat = creat("gc.out",0644)) < 0)
 		       error("cant open gc.out",FALSE);
 		     hhh.version = 5;
-		     hhh.lowdata = (int)beginsweep;
+		     /* hhh.lowdata is an int field; the address may not
+		      * fit on 64-bit. The gc.out file is not consumed by
+		      * anything in this build, so a truncated value is
+		      * acceptable -- but we cast through uintptr_t first
+		      * to silence the warning explicitly.
+		      */
+		     hhh.lowdata = (int)(uintptr_t)beginsweep;
 		     printf("writing %d bytes \n",sizeof(hhh));
 		     write(gcstat,(char *)&hhh,sizeof(hhh));
 		     gccount = 0;
@@ -75,7 +81,7 @@ Lgcstat()
 				  sizeof(nbytes));
 		     write(gcstat,(char *)&nbytes,sizeof(nbytes));
 		     write(gcstat,(char *)&typetable[ATOX(beginsweep)+1],
-				nbytes = ((int)datalim - (int)beginsweep)>>9);
+				nbytes = ((uintptr_t)datalim - (uintptr_t)beginsweep)>>9);
 		     printf("writing %d bytes \n",nbytes+sizeof(nbytes));
 		     write(gcstat,(char *)&nbytes,sizeof(nbytes));
 		     close(gcstat);

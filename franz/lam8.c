@@ -613,7 +613,7 @@ bndchk()
 
 	in2 = inewint(200);
 	for(npt=orgbnp; npt < bnp; npt++)
-	{  if((int) npt->atm < (int) in2) abort();
+	{  if((uintptr_t) npt->atm < (uintptr_t) in2) abort();
 	}
 }
 
@@ -704,7 +704,18 @@ Lsprintf()
 						FALSE);
 			}
 		}
-#if __STDC__
+#if linux_x86_64
+		/* TODO Phase 1g: this whole "stack args, then call sprintf"
+		 * idiom relies on x86 calling conventions where args are
+		 * pushed onto the C stack. On x86_64 args go in registers,
+		 * so the call below is broken at runtime regardless of the
+		 * cast shape. Suppress the type-mismatch warning for now.
+		 */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-function-type"
+		(*(int (*)(char *))(void *)(&sprintf))(sbuf);
+#pragma GCC diagnostic pop
+#elif __STDC__
 		/* This whole function is a grungy hack, so what's another? */
 		(*(int (*)())(&sprintf))(sbuf);
 #else
@@ -1261,8 +1272,12 @@ lispval v,w;
 {
     int i;
     lispval vv, ww, ret;
-    int vsize = (int) v->v.vector[VSizeOff];
-    int wsize = (int) w->v.vector[VSizeOff];
+    /* The vector size word is stored as a lispval (pointer-width) but
+     * its numeric value is what we want; route through intptr_t to avoid
+     * the 64->32 truncation warning.
+     */
+    int vsize = (int)(intptr_t) v->v.vector[VSizeOff];
+    int wsize = (int)(intptr_t) w->v.vector[VSizeOff];
     struct argent *oldlbot = lbot;
     lispval Lequal();
 
@@ -1302,8 +1317,8 @@ lispval v,w;
 {
     char vv, ww;
     int i;
-    int vsize = (int) v->v.vector[VSizeOff];
-    int wsize = (int) w->v.vector[VSizeOff];
+    int vsize = (int)(intptr_t) v->v.vector[VSizeOff];
+    int wsize = (int)(intptr_t) w->v.vector[VSizeOff];
 
     if(vsize != wsize) return(FALSE);
 

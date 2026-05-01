@@ -72,7 +72,7 @@ initial()
 	}
 	for (hash=0;hash<hashtop;hash++) hasht[hash] = (struct atom *) CNIL;
 	
-	sbrk( LBPG-(((int)sbrk(0)) % LBPG) );	/* even up the break */
+	sbrk( LBPG-(((uintptr_t)sbrk(0)) % LBPG) );	/* even up the break */
 	makevals();
 
 	orgnp = np;
@@ -196,7 +196,7 @@ dosig()
 				sigcall(which);
 		}
 }
-badmr(number)
+SIGTYPE badmr(number) int number;
 {
 	signal(number,badmr);
 	fflush(stdout);
@@ -209,7 +209,15 @@ re_enable(signo,handler)
 int signo;
 SIGTYPE (*handler)(int);
 {
-#if (os_4_2| os_4_3)
+#if linux_x86_64
+	/* sigblock/sigsetmask are deprecated in glibc; the modern
+	 * equivalent is sigprocmask. Unblock just `signo`.
+	 */
+	sigset_t one;
+	sigemptyset(&one);
+	sigaddset(&one, signo);
+	sigprocmask(SIG_UNBLOCK, &one, (sigset_t *)0);
+#elif (os_4_2 || os_4_3)
 	sigsetmask(sigblock(0) &~ mask(signo));
 #else
 	signal(signo,handler);

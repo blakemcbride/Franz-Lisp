@@ -12,6 +12,7 @@ static char *rcsid =
 
 #include "global.h"
 #include <signal.h>
+#include <time.h>		/* ctime, time, time_t */
 
 
 lispval
@@ -211,7 +212,7 @@ Lprocess()
 			close(1);
 			dup(childso);
 		}
-		if ((p = (char *)getenv("SHELL")) != (char *)0) {
+		if ((p = getenv("SHELL")) != NULL) {
 			execlp(p , p, "-c",command,0);
 			_exit(-1); /* if exec fails, signal problems*/
 		} else {
@@ -362,7 +363,12 @@ Lbcdad()
 	if (TYPE(temp)!=BCD)
 		return(nil);
 	ret = newint();
-	ret->i = (int)temp;
+	/* Store function-binding address as a Lisp INT. On x86_64
+	 * a full address is 64 bits but `i` is only 32; this will
+	 * truncate. Phase 1c work item: widen INT or use a different
+	 * Lisp type for addresses.
+	 */
+	ret->i = (int)(intptr_t)temp;
 	return(ret);
 }
 

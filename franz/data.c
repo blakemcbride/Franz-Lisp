@@ -125,7 +125,7 @@ lispval Vprintsym;			/* value is the symbol 'print'  */
 
 /*  interpreter globals    */
 
-int lctrace;
+lispval lctrace;	/* (was `int`; widened for 64-bit pointer round-trips) */
 int fvirgin = 1;		/* set to 1 initially 			*/
 int gctime;
 struct frame *errp;		/* stack of error frames 		*/

@@ -17,8 +17,22 @@ static int pagsiz, pagrnd;
 /*
  *Ndumplisp -- create executable version of current state of this lisp.
  */
-#ifndef	os_vms
-#include "aout.h"
+#include "aout.h"   /* stub on linux_x86_64; needed by Lgetaddress below */
+
+#if linux_x86_64
+/* dumplisp is deferred in this port (PortPlan.md) -- writing the
+ * running image back to an a.out file makes no sense on Linux/ELF
+ * and the unexec-style replacement is a separate large project.
+ * Provide a stub so callers see a defined function returning nil.
+ */
+lispval
+Ndumplisp()
+{
+	extern int reborn;
+	reborn = 0;
+	return(nil);
+}
+#elif !defined(os_vms)
 
 lispval
 Ndumplisp()
@@ -157,7 +171,6 @@ Ndumplisp()
 
 /*** VMS version of Ndumplisp ***/
 #else
-#include "aout.h"
 #undef	protect
 #include <vms/vmsexe.h>
 

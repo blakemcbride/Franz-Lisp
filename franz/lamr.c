@@ -402,7 +402,10 @@ lispval
 Lmaknum()
 	{
 	chkarg(1,"maknum");
-	return(inewint((int)(lbot->val)));
+	/* maknum returns the address of a Lisp value as a Lisp INT.
+	 * Truncates on x86_64; same Phase 1c concern as lam7's Lgetfb.
+	 */
+	return(inewint((int)(intptr_t)(lbot->val)));
 	}
 lispval
 Lderef()
@@ -459,9 +462,10 @@ Lptr()
 lispval
 Llctrace()
 	{
+	extern lispval lctrace;
 	chkarg(1,"lctrace");
-	lctrace = (int)(lbot->val->a.clb);
-	return((lispval)lctrace);
+	lctrace = lbot->val->a.clb;
+	return(lctrace);
 	}
 
 lispval

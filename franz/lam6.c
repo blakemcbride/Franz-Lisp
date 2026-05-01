@@ -173,7 +173,7 @@ Lsignal()
 {
 	register lispval handy, old, routine;
 	int i;
-	int sginth();
+	SIGTYPE sginth(int);
 
 	switch(np-lbot) {
 
