@@ -5,42 +5,6 @@ Franz Lisp (Opus 38.92), the Berkeley dialect of Lisp from the early
 
 Project home: <https://github.com/blakemcbride/Franz-Lisp>
 
-```
-$ bin/lisp
-Franz Lisp, Opus 38
--> [load /…/lisplib/common0.l]
-… (the full library loads in about a second)
-->
--> (defun fact (n) (cond ((zerop n) 1) (t (* n (fact (sub1 n))))))
-fact
--> (fact 10)
-3628800
--> (defmacro inc (x) (list 'setq x (list 'add1 x)))
-inc
--> (setq counter 5) (inc counter) (inc counter) counter
-7
--> (mapcar 'add1 '(10 20 30))
-(11 21 31)
-```
-
-## Quick start
-
-```sh
-git clone https://github.com/blakemcbride/Franz-Lisp.git
-cd Franz-Lisp
-
-sudo dnf install gcc make glibc-devel ncurses-devel    # Fedora/RHEL
-# or:
-sudo apt install build-essential libncurses-dev        # Debian/Ubuntu
-
-./lispconf linux_x86_64
-make rawlisp
-bin/lisp
-```
-
-Full build instructions, including troubleshooting, in
-[BUILD.md](BUILD.md).
-
 ## What this is
 
 The original Franz Lisp was developed at UC Berkeley starting in 1979
@@ -142,3 +106,41 @@ BSD 4-clause (Regents of the University of California). See
 The 4-clause "advertising" form means redistributions in binary form
 must reproduce the copyright acknowledgement; check the exact text
 before incorporating into another project.
+
+## Quick start
+
+```sh
+git clone https://github.com/blakemcbride/Franz-Lisp.git
+cd Franz-Lisp
+
+sudo dnf install gcc make glibc-devel ncurses-devel    # Fedora/RHEL
+# or:
+sudo apt install build-essential libncurses-dev        # Debian/Ubuntu
+
+./lispconf linux_x86_64
+make rawlisp
+bin/lisp
+```
+
+Full build instructions, including troubleshooting, in
+[BUILD.md](BUILD.md).
+
+## Example session
+
+```
+$ bin/lisp
+Franz Lisp, Opus 38
+-> [load /…/lisplib/common0.l]
+… (the full library loads in about a second)
+->
+-> (defun fact (n) (cond ((zerop n) 1) (t (* n (fact (sub1 n))))))
+fact
+-> (fact 10)
+3628800
+-> (defmacro inc (x) (list 'setq x (list 'add1 x)))
+inc
+-> (setq counter 5) (inc counter) (inc counter) counter
+7
+-> (mapcar 'add1 '(10 20 30))
+(11 21 31)
+```
