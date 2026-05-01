@@ -74,6 +74,9 @@ where the actual work happens.
 
 ## Run
 
+[RUNNING.md](RUNNING.md) covers using the interpreter and compiler
+in detail; this section is the minimum.
+
 `bin/lisp` is the launcher you'll use day-to-day. It runs the bare
 interpreter (`rawlisp`) with the standard library auto-loaded via
 `lisplib/init.l`:
@@ -146,21 +149,38 @@ can use:
 - The break loop with `(reset)` to escape, `(continue)` to retry.
 - Defstruct, the CMU file package, the CMU top-level, flavors.
 
+## The compiler
+
+`bin/liszt foo.l` compiles a Lisp file to a shared object `foo.so`.
+Load it from `bin/lisp` with `(cfasl …)`. The pipeline:
+
+```sh
+$ cat > add2.l <<'EOF'
+(defun add2 (a b) (+ a b))
+EOF
+$ bin/liszt add2.l                  # -> add2.so
+$ bin/lisp
+-> (cfasl 'add2.so 'init 'add2-init "subroutine" "")
+-> (add2-init)                       ; runs the per-file init
+-> (add2 10 32)                      ; calls the compiled function
+42
+```
+
+See [CompilerPlan.md](CompilerPlan.md) for the design (Lisp-to-C
+back-end, `dlopen` runtime loader). Performance is roughly 2-4× the
+interpreted version on a recursive `fib` benchmark.
+
 ## What doesn't work
 
-- **`liszt`**, the Lisp-to-machine-code compiler. Would need a from-
-  scratch x86_64 code generator. Lisp source loads via `(load 'foo)`
-  reading `foo.l`; compiled `.o` files (fasl format) are not
-  supported.
-- **`(cfasl …)`** and **`(ffasl …)`** — runtime loading of compiled
-  C and Lisp into the running image. Depends on liszt and on an ELF-
-  based replacement for the original a.out loader.
 - **`(dumplisp 'name)`** — writing the running Lisp image to disk as
   a fast-start binary. Not implemented; the launcher's source-load
   approach is fast enough that this hasn't been missed.
 - **`(showstack)`**, **`(baktrace)`** — these stack-walked the C
   call frames using i386 layout assumptions; they'd need libunwind
   on x86_64.
+- **`ffasl`**, the foreign-function fasl that loaded raw `.o`
+  files of compiled C extensions. Different from `cfasl` (the
+  Lisp-to-C compile path), which works.
 - **Bignum products beyond 60 bits** wrap or hang. The bignum kernel
   uses 30-bit halfwords (preserved from the original to minimize
   port risk); a 32-bit-fixnum × 32-bit-fixnum product can overflow

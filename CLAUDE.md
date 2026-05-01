@@ -24,9 +24,9 @@ bin/lisp                   # full Franz Lisp -- rawlisp + library auto-loaded
 
 The library is loaded by `bin/lisp` via `lisplib/init.l`, which sets up `;` as the comment reader-macro and runs `buildlisp.l`. Override the library path with `LISPLIB=/path/to/lisplib bin/lisp`.
 
-What works: `defun`, `defmacro`, `cond`, `let`, recursion, `mapcar`, `princ`, `reverse`, `length`, the break loop, fixnum arithmetic, bignum multiplication (`times`), and reading/writing files via `load`.
+What works: `defun`, `defmacro`, `cond`, `let`, recursion, `mapcar`, `princ`, `reverse`, `length`, the break loop, fixnum arithmetic, bignum multiplication (`times`), reading/writing files via `load`, **and the compiler** — `bin/liszt foo.l` produces `foo.so`, loaded into `bin/lisp` via `(cfasl 'foo.so 'init 'init-fn "subroutine" "")`, with measured 2-4× speedup over interpreted on recursive-arithmetic code (CompilerPlan.md).
 
-What's missing or broken: liszt (the compiler), fasl/cfasl/ffasl (loading compiled `.o`), dumplisp (saving images), `(showstack)`/`(baktrace)`, and bignum products that exceed 60 bits.
+What's missing or broken: dumplisp (saving images), `(showstack)`/`(baktrace)`, the BSD a.out `ffasl` (Lisp-to-C `cfasl` works; `ffasl` doesn't), and bignum products that exceed 60 bits.
 
 The per-arch Makefile lives at `franz/linux_x86_64/Makefile` and uses modern gcc with porting-friendly flags (`-std=gnu89`, `-Wno-implicit-function-declaration`, `-Wno-int-conversion`, etc.). Phase 1 will tighten these as cast issues are fixed at the source level.
 

@@ -45,22 +45,27 @@ full story.
 - I/O: `princ`, `read`, `print`, `format`, file ports.
 - The break loop with `(reset)` and `(continue)`.
 - Defstruct, the CMU file package, the CMU top-level, flavors.
+- **The compiler.** `bin/liszt foo.l` produces `foo.so` (a shared
+  object). `(cfasl 'foo.so 'init …)` from `bin/lisp` loads it into
+  the running image; the compiled functions then dispatch as
+  ordinary Lisp atoms with measurable speedup over interpreted code
+  (2-4× on a recursive-fib microbenchmark). See
+  [CompilerPlan.md](CompilerPlan.md) for the design and the
+  `dlopen`-based runtime loader.
 
 ## What doesn't
 
 These are deferred — their absence doesn't impair the interpreter:
 
-- **`liszt`**, the Lisp compiler. Would need a from-scratch x86_64
-  code generator. Lisp source loads from `.l` files; compiled `.o`
-  files (fasl format) are not supported.
-- **fasl / cfasl / ffasl**, runtime loading of compiled C and Lisp
-  into the running image. Depends on liszt and on an ELF-based
-  replacement for the original a.out loader.
 - **`dumplisp`**, image-save. Not needed because library loading is
   fast enough.
 - **`(showstack)` / `(baktrace)`** — the original code walked C call
   frames using i386 layout assumptions; would need libunwind on
   x86_64.
+- **`ffasl`**, the *foreign-function* fasl that loaded raw `.o`
+  files of compiled C extensions. The Lisp-to-C compiler path
+  (`liszt` + `cfasl`) does work; it's only the original BSD a.out
+  ffasl entry that's stubbed.
 
 ## Project layout
 
@@ -78,7 +83,9 @@ reference/            Inert reference: original i386 sources kept for
                       cross-checking the port. Not built.
 
 BUILD.md              Build instructions and troubleshooting.
-PortPlan.md           The porting plan, with each phase's outcome.
+RUNNING.md            How to use the interpreter and compiler.
+PortPlan.md           The interpreter porting plan, by phase.
+CompilerPlan.md       The compiler porting plan, by phase.
 CLAUDE.md             Working notes for AI-assisted development.
 ```
 
@@ -143,4 +150,25 @@ inc
 7
 -> (mapcar 'add1 '(10 20 30))
 (11 21 31)
+```
+
+Compiling a Lisp file to native code:
+
+```
+$ cat fib.l
+(defun fib (n)
+  (cond ((lessp n 2) n)
+        (t (+ (fib (sub1 n)) (fib (- n 2))))))
+
+$ bin/liszt fib.l                    # produces fib.so
+%Note: fib.l: Compilation complete
+%Note: fib.l: Assembly completed successfully
+
+$ bin/lisp
+-> (cfasl 'fib.so 'init 'init-fib "subroutine" "")
+t
+-> (init-fib)        ; runs the .so's per-file init, defines fib
+t
+-> (fib 30)          ; now runs the compiled code
+832040
 ```
