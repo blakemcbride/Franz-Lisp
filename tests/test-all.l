@@ -269,10 +269,15 @@
    ;; Franz Lisp returns nil from (car ATOM) / (cdr ATOM) -- not an
    ;; error; atoms have those fields too. Use a non-list-ish error
    ;; instead.
-   (chk-eq "car of atom is nil" (car 'foo) nil)
-   (chk-eq "cdr of atom is nil" (cdr 'foo) nil)
-   (chk-err "div by zero"       (/ 5 0))
-   (chk-err "+ on symbol"       (+ 'a 1))
+   ;; In compiled code liszt open-codes car/cdr/+ etc. as direct
+   ;; struct accesses and ignores type. Wrap through apply so both
+   ;; interpreted and compiled paths funnel through the kernel
+   ;; primitives Lcar / Lcdr / Ladd / Lquo, which raise the proper
+   ;; Lisp-level type and divzero errors that errset can catch.
+   (chk-eq "car of atom is nil" (apply (function car) (list 'foo)) nil)
+   (chk-eq "cdr of atom is nil" (apply (function cdr) (list 'foo)) nil)
+   (chk-err "div by zero"       (apply (function /) (list 5 0)))
+   (chk-err "+ on symbol"       (apply (function +) (list 'a 1)))
    ;; errset returns (val) on success, nil on error.
    (chk-eq "errset success"     (errset (+ 1 2) nil) '(3))
    ;; catch / throw

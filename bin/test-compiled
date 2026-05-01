@@ -1,0 +1,75 @@
+#!/bin/sh
+# bin/test-compiled -- run the regression suite through the liszt
+# compiler.
+#
+# Steps:
+#   1. Concatenate harness.l + test-all.l + (run-all-tests) into a
+#      single source file. Liszt expands the chk-eq / chk-err macros
+#      from harness at compile time, so the test functions get
+#      compiled with the macro bodies inlined.
+#   2. Run bin/liszt on the combined source -> .so.
+#   3. cfasl-load the .so into bin/lisp. The bind table contains a
+#      top-level (run-all-tests) form that fires at load time.
+#   4. Grep stdout for the suite's "ALL TESTS PASSED" sentinel.
+#
+# Notes:
+#   - $purcopylits is set to nil before cfasl. The pure-copy path for
+#     compound literals (lists) is broken on x86_64 -- (purcopy '(a b c))
+#     crashes interpretively too -- so we tell clink to leave literals
+#     in normal heap and register the linker table with bind_lists for
+#     GC tracking. Both paths are valid; only the purcopy one is bugged.
+#   - The test suite uses (apply (function /) (list 5 0)) instead of
+#     (/ 5 0) for the div-by-zero case so liszt can't open-code the
+#     `5 / 0` directly in C (which would SIGFPE before errset catches).
+
+set -eu
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+ROOT="${FRANZ_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+
+LISP="${ROOT}/bin/lisp"
+LISZT="${ROOT}/bin/liszt"
+HARNESS="${ROOT}/tests/harness.l"
+SUITE="${ROOT}/tests/test-all.l"
+
+if [ ! -x "$LISP" ] || [ ! -x "$LISZT" ]; then
+    echo "test-compiled: bin/lisp or bin/liszt missing -- run 'make rawlisp' first." >&2
+    exit 2
+fi
+
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+
+COMBINED="$WORK/test-all-c.l"
+cat "$HARNESS" "$SUITE" > "$COMBINED"
+echo "(run-all-tests)" >> "$COMBINED"
+
+echo "test-compiled: compiling $COMBINED ..." >&2
+if ! "$LISZT" "$COMBINED" >"$WORK/compile.log" 2>&1; then
+    echo "test-compiled: liszt compile failed:" >&2
+    cat "$WORK/compile.log" >&2
+    exit 3
+fi
+
+if [ ! -f "$WORK/test-all-c.so" ]; then
+    echo "test-compiled: .so was not produced. liszt log:" >&2
+    cat "$WORK/compile.log" >&2
+    exit 3
+fi
+
+echo "test-compiled: loading and running compiled suite ..." >&2
+OUT=$(printf "(setq \$purcopylits nil)\n(cfasl '\"%s\" '\"init\" 'tac-init \"subroutine\" \"\")\n(tac-init)\n" \
+              "$WORK/test-all-c.so" \
+      | "$LISP" 2>&1)
+
+# Show the run.
+echo "$OUT"
+
+if printf '%s\n' "$OUT" | grep -q "ALL TESTS PASSED"; then
+    exit 0
+elif printf '%s\n' "$OUT" | grep -q "SOME TESTS FAILED"; then
+    exit 1
+else
+    echo "test-compiled: summary line missing -- run did not finish cleanly" >&2
+    exit 4
+fi
