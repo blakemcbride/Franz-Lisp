@@ -110,7 +110,20 @@ extern struct atom nilatom, eofatom;
 #define errorh2 errh2
 #endif
 
+#if linux_x86_64
+/* Phase 1b: OFFSET is a runtime variable (the base of an mmap'd
+ * heap), not the compile-time 0 it was on the original i386 port.
+ * CNIL is used as a sentinel "less than any heap pointer". On Linux
+ * the lowest page (NULL/address 0) is not mappable to userspace, so
+ * NULL is below every valid heap pointer -- there's no need for the
+ * old `OFFSET-4` arithmetic, and using a runtime expression here
+ * would break static initializers like nilatom in low.c.
+ */
+extern uintptr_t OFFSET;
+#define CNIL    ((lispval) 0)
+#else
 #define	CNIL	((lispval) (OFFSET-4))
+#endif
 #define NOTNIL(a)	(nil!=a)
 #define ISNIL(a)	(nil==a)
 
@@ -457,7 +470,7 @@ extern long Fixzero[];
 extern lispval ioname[];	/* names of open files */
 /*  interpreter globals   */
 
-extern int lctrace;
+extern lispval lctrace;	/* widened from int for 64-bit pointer round-trips */
 
 /* register lisp macros for registers */
 

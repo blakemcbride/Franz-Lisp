@@ -194,7 +194,7 @@ struct types *type_struct;
 	lispval p;
 	extern char holend[];
 
-	if( (int) datalim >= TTSIZE*LBPG+OFFSET ) return(2);
+	if( (uintptr_t) datalim >= TTSIZE*LBPG+OFFSET ) return(2);
 
 	/*
 	 * If the hole is defined, then we allocate binary objects
@@ -825,10 +825,10 @@ gc1()
 #ifdef SLOCLEAR
 	{
 	    int enddat;
-	    enddat = (int)(datalim-OFFSET) >> 8;
+	    enddat = (uintptr_t)(datalim-OFFSET) >> 8;
 	    for(bvalue=0; bvalue < (int)enddat ; ++bvalue)
 	    {
-		 qbitmap[bvalue] = zeroq; 
+		 qbitmap[bvalue] = zeroq;
 	    }
 	}
 #endif
@@ -837,15 +837,15 @@ gc1()
 	/* the maximum number of bytes we can clear in one sweep is
 	 * 2^16 (or 1<<16 in the C lingo)
 	 */
-	bytestoclear = ((((int)datalim)-((int)beginsweep)) >> 9) * 16; 
+	bytestoclear = (((uintptr_t)datalim - (uintptr_t)beginsweep) >> 9) * 16;
 	for(start = bitmapi + ATOLX(beginsweep);
 	    bytestoclear > 0;)
 	    {
 		if(bytestoclear > MAXCLEAR)
-			blzero((int)start,MAXCLEAR);
+			blzero((uintptr_t)start,MAXCLEAR);
 		else
-			blzero((int)start,bytestoclear);
-		start = (int *) (MAXCLEAR + (int) start);
+			blzero((uintptr_t)start,bytestoclear);
+		start = (int *) (MAXCLEAR + (uintptr_t) start);
 		bytestoclear -= MAXCLEAR;
 	    }
 			
@@ -1063,7 +1063,7 @@ gc1()
 		    /* we stop sweeping only when we reach a page
 		       boundary since vectors can span pages
 		     */
-		    if(((int)point & 511) == 0)
+		    if(((uintptr_t)point & 511) == 0)
 		    {
 			/* reset the counters, we cannot predict how
 			 * many pages we have crossed over
@@ -1214,11 +1214,23 @@ csegment(typecode,nitems,useholeflag)
 	else
 #endif
 	{
+#if linux_x86_64
+		/* Route through the mmap'd Lisp heap; sbrk would grow
+		 * the C data segment (used by libc malloc) and produce
+		 * pointers outside the Lisp heap region. lisp_heap_alloc
+		 * also keeps datalim in sync.
+		 */
+		extern char *lisp_heap_alloc();
+		charadd = lisp_heap_alloc((size_t)nitems);
+		if (charadd == (char *)0)
+			error("NOT ENOUGH SPACE FOR ARRAY",FALSE);
+#else
 		charadd = sbrk(nitems);
 		datalim = (lispval)(charadd+nitems);
+		if( (intptr_t) charadd <= 0 )
+			error("NOT ENOUGH SPACE FOR ARRAY",FALSE);
+#endif
 	}
-	if( (int) charadd <= 0 )
-		error("NOT ENOUGH SPACE FOR ARRAY",FALSE);
 	/*if(ii!=OTHER)*/ (*spaces[ii]->pages)->i +=  nitems/512;
 	if(ATOX(datalim) > fakettsize) {
 		datalim = (lispval) (OFFSET + (fakettsize << 9));
@@ -1237,14 +1249,17 @@ csegment(typecode,nitems,useholeflag)
 	for(jj=0; jj<nitems; jj=jj+512) {
 		SETTYPE(charadd+jj, ii,30);
 	}
-	ii = (int) charadd;
-	while(nitems > MAXCLEAR)
 	{
-	    blzero(ii,MAXCLEAR);
-	    nitems -= MAXCLEAR;
-	    ii += MAXCLEAR;
+	    /* zero the whole region in MAXCLEAR-sized chunks via blzero. */
+	    uintptr_t addr = (uintptr_t) charadd;
+	    while(nitems > MAXCLEAR)
+	    {
+		blzero(addr,MAXCLEAR);
+		nitems -= MAXCLEAR;
+		addr += MAXCLEAR;
+	    }
+	    blzero(addr,nitems);
 	}
-	blzero(ii,nitems);
 	return((lispval)charadd);
 }
 
@@ -1337,7 +1352,7 @@ markdp(p) register lispval p;
 	mrkdpcnt++;
 #endif
 ptr_loop:
-	if(((int)p) <= ((int)nil)) return;	/*  do not mark special data types or nil=0  */
+	if(((uintptr_t)p) <= ((uintptr_t)nil)) return;	/*  do not mark special data types or nil=0  */
 
         	
 	switch( TYPE(p) )
@@ -1485,6 +1500,106 @@ ptr_loop:
  * xsbrk(0)  returns a pointer to the next page we will allocate (like sbrk(0))
  */
 
+#if linux_x86_64
+
+/*
+ * Phase 1b: replace sbrk-based allocation with a single mmap'd
+ * region of TTSIZE pages. The original code grew the data segment
+ * with sbrk() to extend the Lisp heap, which assumed a layout where
+ * heap pages started at predictable low addresses (compile-time
+ * OFFSET=0). On Linux ASLR and with libc malloc also extending the
+ * brk, that no longer holds. We pre-reserve the entire heap up
+ * front and bump-allocate pages from it; OFFSET is set to its base.
+ *
+ * Implications:
+ *   - The whole heap is committed lazily by the kernel (MAP_ANONYMOUS
+ *     pages are zero-on-demand), so the address-space reservation
+ *     is cheap even at 32 MB.
+ *   - There is no shrinking; lispend() either runs or the process
+ *     exits.
+ *   - ysbrk() (contiguous block allocator for arrays) shares the
+ *     same region, so an array request is just a multi-page xsbrk.
+ */
+
+#include <sys/mman.h>
+
+extern uintptr_t OFFSET;
+static char *heap_base;     /* start of the mmap'd region */
+static char *heap_next;     /* next byte to hand out */
+static char *heap_end;      /* one past end of the region */
+
+static void
+heap_init(void)
+{
+    size_t bytes = (size_t)TTSIZE * LBPG;
+    void *p = mmap((void *)0, bytes,
+                   PROT_READ | PROT_WRITE,
+                   MAP_PRIVATE | MAP_ANONYMOUS, -1, (off_t)0);
+    if (p == MAP_FAILED)
+        lispend("heap_init: mmap failed; cannot reserve Lisp heap");
+    heap_base = (char *)p;
+    heap_next = heap_base;
+    heap_end  = heap_base + bytes;
+    OFFSET    = (uintptr_t)heap_base;
+    datalim   = (lispval)heap_base;
+}
+
+/* lisp_heap_alloc -- low-level bump allocator from the mmap'd region.
+ * Called by xsbrk, ysbrk, and (via the linux_x86_64 path in csegment)
+ * by Lalloc(). Returns NULL on exhaustion; callers decide how to
+ * report. nbytes is rounded up to LBPG so the type-table indexing
+ * stays page-aligned.
+ */
+char *
+lisp_heap_alloc(size_t nbytes)
+{
+    char *result;
+
+    if (heap_base == 0) heap_init();
+
+    nbytes = (nbytes + LBPG - 1) & ~(size_t)(LBPG - 1);  /* round up */
+    if (heap_next + nbytes > heap_end) return (char *)0;
+
+    result = heap_next;
+    heap_next += nbytes;
+    if ((lispval)heap_next > datalim) datalim = (lispval)heap_next;
+    return result;
+}
+
+char *
+xsbrk(n)
+{
+    if (heap_base == 0) heap_init();
+
+    if (n == 0)
+        return heap_next;       /* peek -- next page we'd hand out */
+
+    {
+        char *p = lisp_heap_alloc((size_t)LBPG);
+        if (p == (char *)0)
+            lispend("For sbrk from lisp: no space... Goodbye!");
+        return p;
+    }
+}
+
+char *
+ysbrk(pages, type) int pages, type;
+{
+    char *result;
+    int i;
+
+    result = lisp_heap_alloc((size_t)pages * LBPG);
+    if (result == (char *)0)
+        error("OUT OF SPACE FOR ARRAY REQUEST", FALSE);
+
+    for (i = 0; i < pages; ++i)
+        SETTYPE((result + i * LBPG), type, 10);
+
+    return result;
+}
+
+#else  /* !linux_x86_64 -- original sbrk-based allocator */
+
 char *
 xsbrk(n)
 	{
@@ -1531,6 +1646,8 @@ char *ysbrk(pages,type) int pages, type;
 
 	return(xx);	/*  return pointer to block of storage  */
 	}
+
+#endif /* linux_x86_64 */
 	
 /*
  * getatom 
@@ -1638,7 +1755,8 @@ register char *symb;
 lispval
 LImemory()
 {
-    int nextadr, pagesinuse;
+    uintptr_t nextadr;
+    int pagesinuse;
     
     printf("Memory report. max pages = %d (0x%x) = %d Bytes\n",
     		TTSIZE,TTSIZE,TTSIZE*LBPG);
@@ -1649,10 +1767,10 @@ LImemory()
 	printf("  hole free: %d bytes = %d pages\n\n",
 	       holend-curhbeg, (holend-curhbeg)/LBPG);
 #endif 
-    nextadr = (int) xsbrk(0);	/* next space to be allocated */
-    pagesinuse = nextadr/LBPG;
-    printf("Next allocation at addr %d (0x%x) = page %d\n",
-			nextadr, nextadr, pagesinuse);
+    nextadr = (uintptr_t) xsbrk(0);	/* next space to be allocated */
+    pagesinuse = (nextadr - OFFSET)/LBPG;
+    printf("Next allocation at addr 0x%lx = page %d\n",
+			(unsigned long)nextadr, pagesinuse);
     printf("Free data pages: %d\n", TTSIZE-pagesinuse);
     return(nil);
 }

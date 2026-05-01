@@ -39,13 +39,13 @@
 /* OFFSET is the base address subtracted from a Lisp pointer when
  * computing its page index in the type table (see ATOX in global.h).
  *
- * On the original i386 BSD port this was 0 because the heap began
- * near address 0. Under Linux ASLR no such guarantee holds; the heap
- * is mmap'd at runtime and OFFSET becomes a runtime variable in
- * Phase 1 of the port. We leave the macro defined to 0 here so the
- * existing code compiles; alloc.c/data.c will override at startup.
+ * On the original i386 BSD port this was a compile-time `#define
+ * OFFSET 0` because the heap started near address 0. Under Linux ASLR
+ * no such guarantee holds; the heap is mmap'd at runtime and OFFSET
+ * is a `uintptr_t` variable, declared `extern` in global.h and
+ * defined in data.c. heap_init() (in alloc.c) sets it on first
+ * allocation.
  */
-#define OFFSET          0
 
 
 /* ====================================================================
@@ -110,8 +110,9 @@
  * ==================================================================== */
 
 /* TTSIZE -- absolute limit, in 512-byte pages, on the size of the Lisp
- * heap. Original i386 default was 6120 (~3 MB). Modest by modern
- * standards; we'll revisit in Phase 1 once 64-bit struct sizing is
- * settled. Recompile alloc.c and data.c after changing.
+ * heap. Original i386 default was 6120 (~3 MB). Bumped to 65536
+ * (32 MB) for the Linux x86_64 port -- modest by modern standards
+ * and safe given that the bitmap/typetable arrays scale linearly
+ * with TTSIZE. Recompile alloc.c and data.c after changing.
  */
-#define TTSIZE          6120
+#define TTSIZE          65536

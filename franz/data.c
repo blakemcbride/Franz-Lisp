@@ -19,6 +19,17 @@ static char *rcsid =
 #include	<stdio.h>
 
 /*char firstalloc[NBPG] = { 'x' };	/* first thing allocated in file */
+
+#if linux_x86_64
+/* Phase 1b: base of the mmap'd Lisp heap, set by heap_init() in
+ * alloc.c on the first xsbrk() call. Used by ATOX, the GC bitmap
+ * macros, etc. Initialized to 0 so that any reference before
+ * heap_init runs is at least visibly "not yet initialized" rather
+ * than randomly seeded.
+ */
+uintptr_t OFFSET = 0;
+#endif
+
 lispval lispsys[SIGNIF];	/* lisp data used by system */
 
 lispval gftab[GFTABLEN];	/* global function table for interpreter */

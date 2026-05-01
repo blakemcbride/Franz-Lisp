@@ -61,16 +61,18 @@ The single highest-volume issue. Hunt patterns:
 - `lispint` is `#define`d to `long`. On x86_64 `long` is 8 bytes — that's actually what we want here. Leave it.
 - `MaxINT 0x3fffffff` / `MinINT -0x4000000`: keep as 31-bit boxed-int range for compatibility with existing Lisp code; widening would be a separate decision affecting all bignum boundary code.
 
-### 1b. Heap layout
+### 1b. Heap layout  *(DONE)*
 
-`OFFSET=0` and the assumption that heap pointers fit comfortably in 32 bits both break under ASLR. Fix:
-- Allocate the heap with `mmap(NULL, TTSIZE * 512, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, ...)` at runtime, capture the base into a global `heap_base`.
-- Redefine `OFFSET` from a compile-time constant to a runtime variable. `ATOX(p) = (((uintptr_t)(p) - heap_base) >> 9)`.
-- `CNIL` (the "less than nil" sentinel) becomes `(lispval)(heap_base - 8)`. Verify every comparison against `CNIL` still makes sense.
-- `datalim` (used in `VALID()`) becomes `heap_base + heap_size`.
-- Bump `TTSIZE` — period default 6120 pages = 3MB is silly on a modern box. Start at 65536 (32MB heap) and let it be configurable.
+`OFFSET=0` and the assumption that heap pointers fit comfortably in 32 bits both break under ASLR. What was done:
 
-This is the single change most likely to cause subtle breakage. Worth doing carefully and instrumenting (assert on every `ATOX` that the result is in range).
+- `OFFSET` is now an `extern uintptr_t` declared in `global.h`, defined `0` in `data.c`, and set by `heap_init()` in `alloc.c` on the first `xsbrk()` call.
+- `heap_init()` calls `mmap(NULL, TTSIZE * 512, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0)` to reserve the entire heap up front. The kernel commits anonymous pages lazily so a 32 MB reservation is cheap.
+- A single bump allocator `lisp_heap_alloc(nbytes)` in `alloc.c` serves `xsbrk` (single page), `ysbrk` (multi-page array), and `csegment` (variable-size, was using sbrk directly).
+- `CNIL` is `(lispval)0` for `linux_x86_64` — NULL is below every valid heap pointer on Linux, so the `OFFSET-4` arithmetic isn't needed and would have broken static initializers like `nilatom` in `low.c`.
+- `datalim` is set to `heap_next` after each allocation; `VALID(a)` works as before via the `UPTR(a) <= UPTR(datalim)` check.
+- `TTSIZE` bumped from 6120 (3 MB) to 65536 (32 MB) in `config.h`.
+
+The 28→15 reduction in alloc.c warnings landed naturally with this work: the `(int)datalim`, `(int)beginsweep` style casts in GC and allocator code became `(uintptr_t)`. The remaining 15 alloc.c warnings are all Phase 1c free-list-encoding issues — writing pointer values into 4-byte int slots (`*loop = (int)next` and `temp->s.I = (int)freeptr`), which is a structural redesign.
 
 ### 1c. SPP and struct-size redesign
 
