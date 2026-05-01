@@ -86,11 +86,39 @@ what makes the whole feature actually useful. A v0 with B as a
 fallback is fine if `dlopen` proves harder than expected, but the
 plan below assumes A.
 
-## Phase 0 — Make liszt buildable
+## Phase 0 — Make liszt buildable  *(DONE)*
 
-**Outcome:** `bin/liszt` is a working executable that runs the
-compiler. Doesn't need to produce correct C yet; just needs to start
-up and parse a trivial `.l` file.
+**Outcome achieved:** `bin/liszt` boots, loads the standard library,
+loads the cliszt compiler source, and runs `(liszt foo)` to emit a
+`.c` file. `bin/liszt foo.l` from the command line drives the
+`lisztinit` top-level hook end-to-end.
+
+What was built:
+
+  * `lisplib/liszt-init.l` -- the bootstrap script. Loads the standard
+    library (via buildlisp.l, same as bin/lisp), then sets the
+    `for-c` and `in-c` features, pre-loads cliszt/{const,cmacros,
+    chead}.l so the (eval-when ... (load '../foo.l)) lines in the
+    rest of cliszt see them already loaded (avoids a CWD dance), and
+    finally loads the rest of cliszt in cmake.l's order.
+  * `bin/liszt` -- /bin/sh launcher. Same pattern as bin/lisp:
+    `cat liszt-init.l - | rawlisp "$@"`. Forwards command-line args
+    to rawlisp's argv so `lisztinit` reads them via
+    `(command-line-args)`.
+
+One kernel fix was required during boot: the `outfile` builtin calls
+`verify(mode, ...)` on its second arg, and `(outfile name)` defaults
+the mode to `nil`. After Phase 3 the TYPE() bounds-check returned
+UNBO for `nilatom` (since it lives in BSS, not the heap), which made
+verify reject the default mode as not-an-atom. Fix: extended TYPE()
+to recognize `&nilatom` and `&eofatom` as ATOM (they're the only two
+non-heap-resident atoms; everything else lives in the heap).
+
+Phase 1 fell out for free: liszt produced clean C output for our
+trivial `add2` test case, and gcc compiled it to a valid `.o` using
+the same CFLAGS the kernel uses (`-std=gnu89`,
+`-Wno-implicit-function-declaration`, `-Wno-implicit-int`, etc).
+Dalton's emitter is portable enough out of the box.
 
 The original built liszt via `cliszt/cmake.l`'s `genl` function: load
 each `.l` file in dependency order, set features, `(dumplisp 'nliszt)`.
@@ -134,7 +162,43 @@ We don't have `dumplisp`, so use the same pattern as `bin/lisp`:
 **Done condition:** `bin/liszt --version` (or whatever the existing
 flag is) prints the liszt banner.
 
-## Phase 1 — Verify `#+for-c` produces sensible C output
+## Phase 1 — Verify `#+for-c` produces sensible C output  *(DONE)*
+
+For an `add2` test case, liszt emitted (excerpt):
+
+```c
+static lispval F00085()
+{
+    register struct argent *np0, *argp;
+    register lispval r0;
+    register int i;
+    /* ... */
+    argp = lbot;
+    np0 = (argp+2);
+    i = (((argp+0)->val)->i) + (((argp+1)->val)->i);
+    r0 = fastnewint(i);
+    return r0;
+}
+
+static struct bindspec bindtab[] = {
+    {&(lambda), F00085, "add2"},
+    {0}
+};
+
+init() {
+    clink(literals, get_table_size(literals), &linker,
+          callnames, get_table_size(callnames), &trans, bindtab);
+}
+```
+
+`gcc -c -fPIC -std=gnu89 ...` produces a 2.7 KB `.o`. So the
+compiler is functional end-to-end; what's missing is the runtime
+side (Phase 2 and 3).
+
+The original Phase 1 plan -- to audit the back-end for 32-bit
+assumptions -- proved unnecessary: Dalton's emitter uses the same
+`compiled.h` macros that wrap kernel APIs (`fastnewint`, `BCDCALL`,
+`CALLTRAN`), and those macros take the burden of width handling.
 
 **Outcome:** running `bin/liszt foo.l` on a small test file produces
 a `foo.c` that compiles cleanly with gcc, even if it doesn't yet

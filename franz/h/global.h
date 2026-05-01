@@ -176,6 +176,7 @@ extern char typetable[];  /*  the table with types for each page  */
  * if accidental -- value.
  */
 extern long Fixzero[];
+extern struct atom nilatom, eofatom;
 #define ATX_INHEAP(a1) \
     ((uintptr_t)(a1) >= OFFSET && \
      (uintptr_t)(a1) < (uintptr_t)datalim)
@@ -184,9 +185,18 @@ extern long Fixzero[];
 #define ATX_FIXNUM(a1) \
     ((uintptr_t)(a1) >= (uintptr_t)(Fixzero - 1024) && \
      (uintptr_t)(a1) <  (uintptr_t)(Fixzero + 1024))
+/* The two static atoms nilatom and eofatom live in BSS, so they're
+ * also outside the heap's typetable coverage. Code that calls verify()
+ * on a possibly-nil value (e.g. (outfile name) with default mode)
+ * needs TYPE(nilatom) to be ATOM, not UNBO.
+ */
+#define ATX_STATIC_ATOM(a1) \
+    ((lispval)(a1) == (lispval)&nilatom || \
+     (lispval)(a1) == (lispval)&eofatom)
 #define TYPE(a1) \
     (ATX_INHEAP(a1) ? (typetable+1)[ATOX(a1)] \
      : ATX_FIXNUM(a1) ? INT \
+     : ATX_STATIC_ATOM(a1) ? ATOM \
      : UNBO)
 #define TYPL(a1) TYPE(a1)
 #else

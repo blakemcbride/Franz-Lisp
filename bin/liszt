@@ -1,0 +1,43 @@
+#!/bin/sh
+# bin/liszt -- launcher for the Lisp compiler.
+#
+# Same shape as bin/lisp, but feeds liszt-init.l (which loads the
+# standard library AND the cliszt compiler source) before the user's
+# stdin. Command-line args are forwarded to rawlisp's argv so the
+# `lisztinit` top-level hook can pick them up via (command-line-args)
+# and run the compile.
+#
+# Usage:
+#   bin/liszt foo.l                 # compile foo.l, exit
+#   bin/liszt -q -O foo.l           # with flags (see man/liszt.1)
+#   bin/liszt                       # interactive: compiler loaded,
+#                                   #   normal Lisp prompt
+
+set -eu
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+ROOT="${FRANZ_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+
+RAWLISP="${ROOT}/franz/linux_x86_64/rawlisp"
+INIT="${ROOT}/lisplib/liszt-init.l"
+
+if [ ! -x "$RAWLISP" ]; then
+    echo "liszt: rawlisp not found at $RAWLISP" >&2
+    echo "       run 'make rawlisp' first." >&2
+    exit 1
+fi
+if [ ! -f "$INIT" ]; then
+    echo "liszt: liszt-init.l not found at $INIT" >&2
+    exit 1
+fi
+
+LISPLIB="${LISPLIB:-${ROOT}/lisplib}"
+CLISZT="${CLISZT:-${ROOT}/cliszt}"
+FRANZ_ROOT="${ROOT}"
+export LISPLIB CLISZT FRANZ_ROOT
+
+# Pipe the init scripts in as stdin while forwarding the user's argv
+# to rawlisp. After init runs, the toplevel loop calls user-top-level
+# (= lisztinit), which inspects (command-line-args) and either runs a
+# compile or drops to an interactive prompt.
+exec cat "$INIT" - | "$RAWLISP" "$@"
