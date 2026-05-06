@@ -16,7 +16,7 @@ maintained and the i386 port could no longer be built on contemporary
 systems.
 
 This tree is the result of a port to x86_64 Linux done in 2026. The
-goal was a working interpreter — `defun`, `defmacro`, recursion,
+goal was a working interpreter and compiler — `defun`, `defmacro`, recursion,
 bignums, the standard library — and that goal is met.
 
 The code that runs at startup includes a complete reimplementation
@@ -55,7 +55,7 @@ full story.
 
 ## What doesn't
 
-These are deferred — their absence doesn't impair the interpreter:
+These are deferred — their absence doesn't impair the system:
 
 - **`dumplisp`**, image-save. Not needed because library loading is
   fast enough.
