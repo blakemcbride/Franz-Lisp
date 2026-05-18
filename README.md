@@ -7,8 +7,10 @@ Project home: <https://github.com/blakemcbride/Franz-Lisp>
 
 ## What this is
 
-The original Franz Lisp was developed at UC Berkeley starting in 1979
-and was the implementation language of Macsyma at the time. Its
+Franz Lisp was developed at UC Berkeley beginning in the late 1970s 
+as a Maclisp-influenced Lisp for Unix/VAX systems, and was used to 
+run the VAX port of Macsyma, whose original development at MIT had 
+begun earlier in Maclisp.  Its
 distribution targeted vax/tahoe/68k/i386 BSD with K&R-era C, BSD
 assembler conventions, a.out object format, and gcc-i386-specific
 varargs trickery. By the mid-90s it had stopped being actively
