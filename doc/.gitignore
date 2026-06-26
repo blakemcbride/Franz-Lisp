@@ -1,0 +1,27 @@
+# Build artifacts produced by `make' in this directory.
+# The canonical, installed copies of the manual live in lisplib/manual/
+# (committed there); everything here is regenerable from the .n source.
+
+# nroff text manual + its per-chapter index fragments
+*.r
+*.rx
+helpindex
+
+# troff / typeset intermediates
+*.t
+*.x
+*.q
+*.qx
+*.sp
+
+# index and cross-reference machinery
+/index
+/indexx
+/C-database
+/doc-database
+/bigxref
+/lisplibfiles
+/tofc
+
+# note: helpindex.losing and mantags are tracked SOURCE, not artifacts,
+# and are intentionally not ignored.
