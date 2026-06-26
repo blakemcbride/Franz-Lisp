@@ -9,13 +9,13 @@
 #	   ch5.n  i/o
 #	   ch6.n  system functions
 #	   ch7.n  reader
-#	   ch8.n  functions and macros 
-#	   ch9.n  arrays 
-#	   ch10.n exception handling 
-#	   ch11.n trace package 
-#	   ch12.n liszt 
+#	   ch8.n  functions and macros
+#	   ch9.n  arrays
+#	   ch10.n exception handling
+#	   ch11.n trace package
+#	   ch12.n liszt
 #	   ch13.n cmu top level
-#	   ch14.n stepper 
+#	   ch14.n stepper
 #	   ch15.n fixit package
 #	   ch16.n lisp editor
 #	   chb.n special symbols
@@ -26,7 +26,7 @@
 
 # the syntax's have this meaning:
 #  .n  nroff/troff source file
-#  .t  troff output file, can be vpr -t 'ed 
+#  .t  troff output file, can be vpr -t 'ed
 #  .x  index file from a troff run, when collected and run through troff
 #	again, an index is produced.
 #  .v  this file never exists, but asking for it will cause a .t file to
@@ -48,20 +48,29 @@
 # make install will install the nroff versions of the manual in the
 # directory (LibDir/manual) where the auxfns0.l help command can find them.
 #
-LibDir = /usr/lib/lisp
+# ----------------------------------------------------------------------------
+# Linux x86_64 port note:
+#   The original makefile shelled out to a tiny C helper (utils/append) to
+#   turn a list of roots ("ch0 ch1 ...") into a list of suffixed file names
+#   ("ch0.r ch1.r ..."), because 1980s make had no string functions.  GNU
+#   make does this natively with $(addsuffix ...), so the helper -- and the
+#   C compile of append.c that used to break `make' here -- is gone.
+#   Typeset output now uses groff instead of the long-dead /usr/ucb/vtroff,
+#   and LibDir points at the in-tree lisplib so `make install' drops the
+#   help text where bin/lisp actually reads it.
+# ----------------------------------------------------------------------------
+#
+LibDir = ../lisplib
 CcodeDir = ../franz
 CopyTo = /dev/null
-TROFF=	/usr/ucb/vtroff
+TROFF=	groff
 NROFF=  nroff
 O =
-Append = ${LibDir}/append
-# Rmt = is unecessary; you can say, make rall NROFF="'dali nroff'".
-# better to just copy the doc directory to the remote machine and
-# run it all there.
+Rmt =
 
-#--- Sources: 
+#--- Sources:
 #	We use the suffixes to tell make how to make a file.  Thus
-#  we only specify the root and let the append function add the
+#  we only specify the root and let $(addsuffix ...) add the
 #  appropriate suffix.
 
 MacroSrc = lmacs
@@ -72,43 +81,49 @@ RootGenSrc = ch0 ch1 ch2 ch3 ch4 ch5 ch6 ch61 ch7 ch8 \
 UtilSrc = Makefile indexsed mantags extrnames.awk fixmks.sed \
 	franz.n
 
-#-- can't get a expression for all source at make read time. must use
-#   append to add .n to RootGenSrc
+# the suffixed file lists, derived from the roots above.
+RootN  = $(addsuffix .n,$(RootGenSrc))
+RootR  = $(addsuffix .r,$(RootGenSrc))
+RootRX = $(addsuffix .rx,$(RootGenSrc))
+RootT  = $(addsuffix .t,$(RootGenSrc))
+RootV  = $(addsuffix .v,$(RootGenSrc))
+RootP  = $(addsuffix .p,$(RootGenSrc))
+RootQ  = $(addsuffix .q,$(RootGenSrc))
+RootX  = $(addsuffix .x,$(RootGenSrc))
 
 
 all:
-	make rall
+	$(MAKE) rall
 
-rall: ${Append}
-	make NROFF=${NROFF} O=${O}  LibDir=${LibDir} \
-		`${Append} .r ${RootGenSrc}` helpindex
+rall:
+	$(MAKE) NROFF=$(NROFF) O=$(O) LibDir=$(LibDir) $(RootR) helpindex
 
-vall: ${Append}
-	make TROFF=${TROFF} O=${O} `${Append} .v ${RootGenSrc}` index.v
+vall:
+	$(MAKE) TROFF=$(TROFF) O=$(O) $(RootV) index.v
 
-tall: ${Append}
-	make TROFF=${TROFF} O=${O} `${Append} .t ${RootGenSrc}` index.t
+tall:
+	$(MAKE) TROFF=$(TROFF) O=$(O) $(RootT) index.t
 
 cctall:
-	make TROFF="troff -s12" tall
+	$(MAKE) TROFF="groff -s12" tall
 
-pall: ${Append}
-	make TROFF=${TROFF} O=${O} `${Append} .p ${RootGenSrc}` pindex
+pall:
+	$(MAKE) TROFF=$(TROFF) O=$(O) $(RootP) pindex
 
 troff: pall
-	
-qall: ${Append}
-	make NROFF=${NROFF} O=${O} `${Append} .q ${RootGenSrc}` index.t
 
-spall: ${Append}
-	make TROFF=${TROFF} O=${O} `${Append} .q ${RootGenSrc}` index.t
+qall:
+	$(MAKE) NROFF=$(NROFF) O=$(O) $(RootQ) index.t
+
+spall:
+	$(MAKE) TROFF=$(TROFF) O=$(O) $(RootQ) index.t
 
 # only a few files describe functions which are indexed.
 
 .t.v:
 	vpr -t $*.t
 
-.n.t:	
+.n.t:
 	tbl lmacs $*.n | ${TROFF} -me ${O} -t 1> $*.t 2> $*.x
 
 .n.p:
@@ -130,52 +145,47 @@ spall: ${Append}
 
 .n.sp:
 	spell $*.n > $*.sp
-	
-install: 
-#	make O=${O} rall
-	make LibDir=${LibDir} rall
-	cp `${Append} .r ${RootGenSrc}` helpindex ${LibDir}/manual
+
+install: rall
+	cp $(RootR) helpindex $(LibDir)/manual
 
 clean:
-	-rm -f *.r 
-	-rm -f *.rx 
-	-rm -f helpindex 
-	-rm -f *.t 
-	-rm -f *.q 
+	-rm -f *.r
+	-rm -f *.rx
+	-rm -f helpindex
+	-rm -f *.t
+	-rm -f *.q
 	-rm -f *.x
 
 
-findex:  ${Append}
-	make `${Append} .x ${RootGenSrc}`
+findex:
+	$(MAKE) $(RootX)
 	echo ".Ib" > index
-	sort +3 -o index index `${Append} .x ${RootGenSrc}`
-	sed -f indexsed index > indexx 
+	sort +3 -o index index $(RootX)
+	sed -f indexsed index > indexx
 	${Rmt} ${TROFF} -me lmacs indexx
 
-index.t: 
-	make `${Append} .x ${RootGenSrc}`
+index.t:
+	$(MAKE) $(RootX)
 	echo ".Ib" > index
-	sort +3 -o index index `${Append} .x ${RootGenSrc}`
+	sort +3 -o index index $(RootX)
 	sed -f indexsed index > indexx
 	${TROFF} -me -x -t lmacs indexx > index.t
 
-pindex: ${Append}
-	make `${Append} .x ${RootGenSrc}`
+pindex:
+	$(MAKE) $(RootX)
 	echo ".Ib" > index
-	sort +3 -o index index `${Append} .x ${RootGenSrc}`
+	sort +3 -o index index $(RootX)
 	sed -f indexsed index > indexx
 	${TROFF} -me lmacs indexx
 
-helpindex: ${Append}
-	make `${Append} .rx ${RootGenSrc}`
-	cat `${Append} .rx ${RootGenSrc}` | tr '\227' ' ' > helpindex
+helpindex:
+	$(MAKE) $(RootRX)
+	cat $(RootRX) | tr '\227' ' ' > helpindex
 
-tags:	/dev/tty ${Append}
-	awk -f mantags `${Append} .n ${RootGenSrc}` | sort > tags
+tags:	$(RootN)
+	awk -f mantags $(RootN) | sort > tags
 
-
-${Append}: 
-	(cd ../utils  ; make LibDir=${LibDir} ${Append})
 
 # to create a database for lxref to use:
 C-database: ${CcodeDir}/sysat.c
@@ -184,33 +194,30 @@ C-database: ${CcodeDir}/sysat.c
 	(echo "(Chome)" ; cat mks.fixed ) > C-database
 	rm -f mks mks.fixed
 
-doc-database: 
-	awk -f extrnames.awk `${Append} .n ${RootGenSrc}`\
- 	   | sed -f fixmks.sed > doc-database
+doc-database:
+	awk -f extrnames.awk $(RootN) | sed -f fixmks.sed > doc-database
 
 
 bigxref: C-database doc-database
-	${Append} -p ${LibDir}/ `(cd ${LibDir} ; make echorequired)` | \
+	echo $(addprefix $(LibDir)/,$(shell cd $(LibDir) ; $(MAKE) echorequired)) | \
 		sed 's/\.l/.x/g' > lisplibfiles
 	lxref doc-database  C-database  `cat lisplibfiles` > bigxref
 
 # simple table of contents, just a listing of which function is
 # documented in which chapter
-tofc:  
-	egrep "^.Lc|^.Lf|^.Lx|^.sh" `${Append} .n  ${RootGenSrc}` > tofc
+tofc:
+	egrep "^.Lc|^.Lf|^.Lx|^.sh" $(RootN) > tofc
 
 
 copysource:
-	(tar cf - ${MacroSrc} `${Append} .n ${RootGenSrc}` ${UtilSrc} | \
+	(tar cf - ${MacroSrc} $(RootN) ${UtilSrc} | \
 	 (cd ${CopyTo} ; tar xf -))
 
-scriptcatall: ${AllSrc} ${Append}
-	@(cd .. ; scriptcat doc doc ${MacroSrc} `${Append} .n ${RootGenSrc}` ${UtilSrc})
+scriptcatall:
+	@(cd .. ; scriptcat doc doc ${MacroSrc} $(RootN) ${UtilSrc})
 	@(cd .. ; scriptcat doc lisplib/manual \
-	      `${Append} .r ${RootGenSrc}` helpindex)
+	      $(RootR) helpindex)
 
-copymanual: ${Append} rall
+copymanual: rall
 	( cd ${FromDir}/manual ; \
-	  cp `${Append} .r ${RootGenSrc}` helpindex ${CopyTo})
-
-
+	  cp $(RootR) helpindex ${CopyTo})
