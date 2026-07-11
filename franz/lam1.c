@@ -11,7 +11,9 @@ static char *rcsid =
  */
 
 # include "global.h"
-# include <sgtty.h>
+# if !linux_x86_64
+#  include <sgtty.h>	/* only Ldrain()'s non-linux path uses sgttyb/gtty/stty */
+# endif
 # include "chkrtab.h"
 # include "frame.h"
 

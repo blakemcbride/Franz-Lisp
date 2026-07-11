@@ -106,13 +106,20 @@ LDFLAGS = -m64 -no-pie -fno-pic -rdynamic
 # load time.
 #
 # Libraries:
-#   -ltermcap supplies tgetent/tgetstr/tputs (lam9.c uses it). On modern
-#   Fedora/glibc this is provided by ncurses; -ltinfo also works.
+#   TERMLIB supplies tgetent/tgetstr/tputs (lam9.c uses it). These live
+#   in -ltermcap on some systems, -ltinfo (ncurses) on others, and plain
+#   -lncurses on musl -- none is present everywhere. Probe for the first
+#   that links so the tree builds out of the box on glibc (termcap OR
+#   tinfo) and musl (ncurses) alike. Override with `make TERMLIB=-lfoo`.
 #   -lm for math (sqrt, sin, etc. via foreign-function calls).
 #   -ldl for dlopen/dlsym (CompilerPlan Phase 3). On recent glibc this
 #   is in libc itself; the explicit -ldl is a harmless no-op there and
 #   still works on older systems.
-LDLIBS = -ltermcap -lm -ldl
+TERMLIB := $(shell for l in termcap tinfo ncurses tinfow ncursesw; do \
+	if printf 'extern int tgetent();int main(){return(int)(long)tgetent;}\n' \
+	   | $(CC) -x c - -l$$l -o /dev/null 2>/dev/null; then echo -l$$l; break; fi; \
+	done)
+LDLIBS = $(TERMLIB) -lm -ldl
 
 rawlisp: $(MipObj) $(ArchObj)
 	$(CC) $(LDFLAGS) -o rawlisp $(MipObj) $(ArchObj) $(LDLIBS)
