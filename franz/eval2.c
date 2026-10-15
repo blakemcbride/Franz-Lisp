@@ -12,6 +12,7 @@ static char *rcsid =
 
 
 #include "global.h"
+#include <alloca.h>
 #include "frame.h"
 
 /* Iarray - handle array call.
@@ -64,7 +65,6 @@ lispval
 Ifcall(a)
 lispval a;
 {
-	char *alloca();
 	/* arglist slots must be pointer-wide to hold pointers/ints
 	 * uniformly on x86_64 LP64. Phase 1g rewrote callg_ for the
 	 * x86_64 SysV ABI -- it dispatches on arglist[0] and calls fn
@@ -217,6 +217,7 @@ register char *to, *from;
 register size;
 {
 	while(--size >= 0) *to++ = *from++;
+	return(0);
 }
 
 lispval
@@ -465,6 +466,7 @@ register struct nament *llimit;
 	} else rnp->atm->a.clb = rnp->val;  /* the normal case */
     }
     bnp = llimit;
+	return(0);
 }
 
 
@@ -546,4 +548,5 @@ LIfss()
 		return(lbnp->val);
 	}
 	/*NOTREACHED*/
+	return(nil);	/* not reached */
 }

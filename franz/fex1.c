@@ -203,6 +203,7 @@ Nthrow()
 	}
 	Inonlocalgo(C_THROW,lbot->val,(lbot+1)->val);
 	/* NOT REACHED */
+	return(nil);	/* not reached */
 }
 
 
@@ -225,6 +226,7 @@ Ngo()
     }
     Inonlocalgo(C_GO,temp,nil);
     /* NOT REACHED */
+	return(nil);	/* not reached */
 }
 
 
@@ -234,6 +236,7 @@ lispval
 Nreset()
 {
     Inonlocalgo(C_RESET,inewint(0),nil);
+	return(nil);	/* not reached */
 }
 
 
@@ -264,6 +267,7 @@ Nbreak()
 Nexit()
 	{
 	lispend("");
+	return(0);	/* not reached */
 	}
 
 
@@ -274,6 +278,7 @@ lispval
 Nsys()
 	{
 	lispend("");
+	return(nil);	/* not reached */
 	}
 
 

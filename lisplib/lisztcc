@@ -26,12 +26,31 @@ fi
 
 # Compose CFLAGS to match what the kernel was built with. The
 # -Wno-* tolerances let liszt's K&R-style emitted output through.
-CFLAGS="-O2 -m64 -fPIC -std=gnu89 \
-        -Wno-implicit-function-declaration \
-        -Wno-implicit-int \
-        -Wno-int-conversion \
-        -Wno-builtin-declaration-mismatch \
-        -I${ROOT}/franz/h"
+#
+# On macOS the compiler is clang, which rejects gcc's
+# -Wno-builtin-declaration-mismatch and makes several K&R-isms hard
+# errors; and the Mach-O linker refuses undefined symbols in a dylib
+# unless told they'll be resolved at load time (from rawlisp).
+case "$(uname -s)" in
+    Darwin)
+        CFLAGS="-O2 -fPIC -std=gnu89 \
+            -Wno-implicit-function-declaration \
+            -Wno-implicit-int \
+            -Wno-int-conversion \
+            -Wno-return-mismatch \
+            -Wno-incompatible-function-pointer-types \
+            -Wno-deprecated-non-prototype \
+            -I${ROOT}/franz/h"
+        LDSHARED="-dynamiclib -undefined dynamic_lookup" ;;
+    *)
+        CFLAGS="-O2 -m64 -fPIC -std=gnu89 \
+            -Wno-implicit-function-declaration \
+            -Wno-implicit-int \
+            -Wno-int-conversion \
+            -Wno-builtin-declaration-mismatch \
+            -I${ROOT}/franz/h"
+        LDSHARED="-shared" ;;
+esac
 
 # Parse "-o NAME ..." out of the args, rewriting NAME's .o extension
 # to .so.
@@ -61,4 +80,4 @@ if [ -z "$OUTPUT" ] || [ -z "$INPUTS" ]; then
 fi
 
 # shellcheck disable=SC2086
-exec ${CC:-cc} ${CFLAGS} -shared -o "$OUTPUT" $INPUTS
+exec ${CC:-cc} ${CFLAGS} ${LDSHARED} -o "$OUTPUT" $INPUTS

@@ -273,6 +273,7 @@ Nstatus()
 	}
 	error("Internal error in status: Couldn't figure out request",FALSE);
 	/* NOTREACHED */
+	return(nil);	/* not reached */
 }
 lispval
 Nsstatus()

@@ -109,6 +109,7 @@ d8:	if(remainder) {
 		*quotient = export(qbot + m + 1, qbot);
 	}
 	Freexs();
+	return(0);
 }
 /*
  * asm code commented out due to optimizer bug
@@ -223,7 +224,9 @@ Ihau(fix)
 register int fix;
 {
 	register count;
-	if(fix==MAXINT)
+	/* the most negative int, whose negation overflows. (Was compared
+	 * with MAXINT == 0x80000000L, which no int equals on 64-bit.) */
+	if(fix == -2147483647 - 1)
 		return(32);
 	if(fix < 0)
 		fix = -fix;
@@ -307,7 +310,7 @@ on1:
 				   so chop off mylen - n bits */
 		stack(0);
 		n = mylen - n;
-		for(n; n >= 30; n -= 30)
+		for(; n >= 30; n -= 30)
 			top--;
 		if(top < bot)
 			error("Internal error in haipart #1",FALSE);

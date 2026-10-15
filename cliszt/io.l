@@ -335,6 +335,7 @@
 	  "  clink(literals, get_table_size(literals), &linker," N
 	  "        callnames, get_table_size(callnames), &trans," N
 	  "        bindtab);" N
+	  "  return(0);" N	; cfasl calls this as a "subroutine"
 	  "}" N
 	  N))
 

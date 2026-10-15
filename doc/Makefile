@@ -157,6 +157,11 @@ clean:
 	-rm -f *.q
 	-rm -f *.x
 
+# Everything `make' here can produce (matches doc/.gitignore).
+distclean: clean
+	-rm -f *.qx *.sp
+	-rm -f index indexx C-database doc-database bigxref lisplibfiles tofc
+
 
 findex:
 	$(MAKE) $(RootX)

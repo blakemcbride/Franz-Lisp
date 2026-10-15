@@ -100,7 +100,7 @@
 ;
 (defun vsize (vector)
    (if (or (vectorp vector) (vectorip vector))
-      then (int:vsize vector 2)
+      then (int:vsize vector 3)	; log2 sizeof(long) on 64-bit
       else (error "vsize: non vector argument " vector)))
 
 (defun vsize-word (vectori)

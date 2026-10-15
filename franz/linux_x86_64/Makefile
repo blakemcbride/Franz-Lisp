@@ -1,9 +1,14 @@
-# Makefile for the Linux x86_64 port of the Franz Lisp C kernel.
+# Makefile for the 64-bit Unix port of the Franz Lisp C kernel.
 #
 # This is the per-arch Makefile, invoked from the top-level Makefile
-# as ${FranzD} where Mach=linux_x86_64. It is derived from
+# as ${FranzD}. It builds the linux_x86_64 target here, and is also
+# the shared rule set for the other targets: franz/macos_arm64/,
+# franz/macos_x86_64/ and franz/linux_arm64/ each hold a short
+# Makefile that sets VPATH to this directory and includes this file,
+# so their objects and rawlisp land in their own directory while the
+# sources stay here. It is derived from
 # franz/i386/Makefile but with the dual-arch and HOLE/rawhlisp variants
-# removed -- on Linux there is exactly one supported configuration.
+# removed -- there is exactly one supported configuration.
 #
 # Phase 0 of the port (see PortPlan.md): we only need this file to
 # compile individual .o files. Linking rawlisp comes in Phase 2.
@@ -35,6 +40,30 @@ CFLAGS = -m64 -O0 -g \
 	-Wno-int-conversion \
 	-Wno-builtin-declaration-mismatch \
 	-I../h
+
+# macOS (Apple clang, arm64 or x86_64). clang turns several K&R-era
+# diagnostics into hard errors that gcc only warns about, and has no
+# -Wno-builtin-declaration-mismatch. Apple's toolchain always links
+# PIE, so -no-pie/-fno-pic are dropped. See macOS.md.
+#   -Wno-return-mismatch         bare `return;` in implicit-int functions
+#   -Wno-incompatible-function-pointer-types
+#                                K&R function-pointer tables (ftab etc.)
+#   -fno-common                  plain BSS for tentative definitions (gcc
+#                                10+ default); avoids ld's "reducing
+#                                alignment of section __DATA,__common"
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+CFLAGS = -O0 -g \
+	-fno-strict-aliasing -fno-omit-frame-pointer -fno-common \
+	-std=gnu89 \
+	-Wno-implicit-function-declaration \
+	-Wno-implicit-int \
+	-Wno-int-conversion \
+	-Wno-return-mismatch \
+	-Wno-incompatible-function-pointer-types \
+	-Wno-deprecated-non-prototype \
+	-I../h
+endif
 
 # All C sources in the machine-independent kernel and this arch dir.
 # (The .l/.o split, fasl, and rlc.c live in franz/ and franz/${Mach}/
@@ -85,6 +114,11 @@ smoke: ../lisp.o
 ArchSrc = callg.c bignum.c arch.c clinkfns.c
 ArchObj = callg.o bignum.o arch.o clinkfns.o
 
+# Every object depends on every header: the kernel shares struct
+# layouts and size macros (LBPG, VecTotSize, ...) through ../h, and a
+# stale .o built against an older header fails in confusing ways.
+$(MipObj) $(ArchObj): $(wildcard ../h/*.h)
+
 # Build a single arch-specific .o.
 %.o: %.c
 	$(CC) -c $(CFLAGS) -o $@ $<
@@ -99,6 +133,9 @@ allkernel: $(MipObj) $(ArchObj)
 # is similarly debugger-friendly but pulls glibc's full footprint, so
 # we leave it dynamic for now.
 LDFLAGS = -m64 -no-pie -fno-pic -rdynamic
+ifeq ($(UNAME_S),Darwin)
+LDFLAGS = -rdynamic
+endif
 # -rdynamic exposes the kernels symbols (eval, inewint, cons, clink,
 # clinker, etc.) in rawlisps dynamic symbol table so dlopen'd compiled
 # Lisp .so files can call them. Without it, those symbols are hidden

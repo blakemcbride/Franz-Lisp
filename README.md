@@ -1,7 +1,7 @@
-# Franz Lisp on Linux x86_64
+# Franz Lisp on Linux and macOS
 
 Franz Lisp (Opus 38.92), the Berkeley dialect of Lisp from the early
-1980s, ported to modern Linux on x86_64.
+1980s, for 64-bit Linux and macOS.
 
 Project home: <https://github.com/blakemcbride/Franz-Lisp>
 
@@ -17,24 +17,22 @@ varargs trickery. By the mid-90s it had stopped being actively
 maintained and the i386 port could no longer be built on contemporary
 systems.
 
-This tree is the result of a port to x86_64 Linux done in 2026. The
-goal was a working interpreter and compiler — `defun`, `defmacro`, recursion,
-bignums, the standard library — and that goal is met.
+This tree builds and runs Franz Lisp on 64-bit Linux (x86_64) and
+macOS (Apple Silicon): the interpreter, the standard library, and the
+Lisp-to-C compiler.
 
-The code that runs at startup includes a complete reimplementation
-of:
+The machine-dependent parts are portable C:
 
-- the foreign-function trampoline (`callg.c`) for the x86_64 SysV ABI
-- the bignum kernels using `long long` arithmetic instead of i386 asm
-- the heap allocator backed by `mmap` instead of `sbrk`
-- runtime-relocatable type-tagging (the original assumed the heap
-  started at address 0)
+- the foreign-function trampoline (`callg.c`)
+- the bignum kernels, using `long long` arithmetic
+- the heap allocator, backed by a single `mmap`'d region
+- runtime-relocatable type tagging (the heap can live anywhere in the
+  address space)
 
-About 700 lines of new arch-specific glue under
-`franz/linux_x86_64/`. The ~20k-line machine-independent kernel was
-preserved with type widenings and bounds-checks where 32-bit
-assumptions had crept in. See [PortPlan.md](PortPlan.md) for the
-full story.
+That arch-specific code, under `franz/linux_x86_64/`, is about 700
+lines. The ~20k-line machine-independent kernel is the Berkeley code,
+with the types and size calculations it needs to run with 64-bit
+pointers. [PortPlan.md](PortPlan.md) records how the port was done.
 
 ## What works
 
@@ -57,28 +55,30 @@ full story.
 
 ## What doesn't
 
-These are deferred — their absence doesn't impair the system:
+Not implemented; none of these is needed for normal use:
 
 - **`dumplisp`**, image-save. Not needed because library loading is
   fast enough.
-- **`(showstack)` / `(baktrace)`** — the original code walked C call
-  frames using i386 layout assumptions; would need libunwind on
-  x86_64.
-- **`ffasl`**, the *foreign-function* fasl that loaded raw `.o`
-  files of compiled C extensions. The Lisp-to-C compiler path
-  (`liszt` + `cfasl`) does work; it's only the original BSD a.out
-  ffasl entry that's stubbed.
+- **`(showstack)` / `(baktrace)`**, which walk the C call stack; they
+  would need a stack unwinder such as libunwind.
+- **`ffasl`**, the *foreign-function* fasl that loads raw `.o` files
+  of compiled C extensions (a BSD a.out format). The Lisp-to-C
+  compiler path (`liszt` + `cfasl`) does work.
 
 ## Project layout
 
 ```
 franz/                C kernel source. ~20k lines, mostly preserved.
 franz/h/              Shared headers. config.h, global.h, ltypes.h.
-franz/linux_x86_64/   x86_64-specific glue: callg, bignum, arch,
-                      Makefile, rawlisp binary after build.
+franz/linux_x86_64/   Per-arch sources shared by all targets (callg,
+                      bignum, arch, clinkfns) and the shared build
+                      rules; the Linux x86_64 build goes here.
+franz/macos_arm64/    Build directory for macOS on Apple Silicon (also
+                      macos_x86_64/, linux_arm64/): a short Makefile,
+                      plus that target's objects and rawlisp.
 lisplib/              Lisp source for the standard library, plus
                       init.l (loaded by bin/lisp at startup).
-bin/lisp              Launcher. Pipes init.l into rawlisp.
+bin/lisp              Launcher. Runs rawlisp with FRANZ_INIT=init.l.
 doc/                  The 1983 manual (troff source).
 man/                  Unix man pages: lisp(1), liszt(1), lxref(1).
 reference/            Inert reference: original i386 sources kept for
@@ -105,8 +105,8 @@ page: <https://github.com/blakemcbride/Franz-Lisp/issues>.
 - Compile-to-C compiler and the NetBSD-on-i386 port were by Jeff
   Dalton at the AI Applications Institute, University of Edinburgh,
   in 1992-1994.
-- 2026 Linux x86_64 port: Blake McBride, with Claude (Anthropic)
-  doing most of the porting work in dialogue.
+- 64-bit Linux and macOS port (2026): Blake McBride, with Claude
+  (Anthropic) doing most of the porting work in dialogue.
 
 ## License
 
@@ -126,11 +126,15 @@ cd Franz-Lisp
 sudo dnf install gcc make glibc-devel ncurses-devel    # Fedora/RHEL
 # or:
 sudo apt install build-essential libncurses-dev        # Debian/Ubuntu
+# or, on macOS:
+xcode-select --install
 
-./lispconf linux_x86_64
+./lispconf          # detects the host (./lispconf -l lists targets)
 make rawlisp
 bin/lisp
 ```
+
+macOS specifics are in [macOS.md](macOS.md).
 
 Full build instructions, including troubleshooting, in
 [BUILD.md](BUILD.md).
@@ -140,9 +144,8 @@ Full build instructions, including troubleshooting, in
 ```
 $ bin/lisp
 Franz Lisp, Opus 38
--> [load /…/lisplib/common0.l]
+[load /…/lisplib/common2.l]
 … (the full library loads in about a second)
-->
 -> (defun fact (n) (cond ((zerop n) 1) (t (* n (fact (sub1 n))))))
 fact
 -> (fact 10)

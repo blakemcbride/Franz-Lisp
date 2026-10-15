@@ -943,17 +943,44 @@
 (declare (special $ldprint))	; print message before loading
 (declare (special prinlevel prinlength))
 
+; Per-file reader syntax. Library files that start with
+; (environment-maclisp) -- struct, loop, hash, flavors, ... -- were
+; meant to be loaded compiled, where the syntax switch never happens.
+; Loaded from source, environment-syntax switches to a private copy
+; of the readtable and records the syntax in effect before the switch
+; here; load-a-file binds readtable per file so the switch ends with
+; the file, and reads any file loaded from inside such a file (e.g. an
+; autoload of format.l while flavors.l is loading) with the original
+; syntax.
+(declare (special in-load-a-file pre-environment-readtable
+		  pre-environment-uctolc))
+(or (boundp 'in-load-a-file) (setq in-load-a-file nil))
+(or (boundp 'pre-environment-readtable) (setq pre-environment-readtable nil))
+(or (boundp 'pre-environment-uctolc) (setq pre-environment-uctolc nil))
+
 (defun load-a-file (fname)
    (cond ($ldprint (patom "[load ")(patom fname)(patom "]")(terpr)))
-   (let ((translinkarg (status translink)))
+   (let ((translinkarg (status translink))
+	 (outer-readtable readtable)
+	 (outer-uctolc (status uctolc)))
       (prog1
-	 (let ((Piport (infile fname))
+	 (let ((readtable (or pre-environment-readtable readtable))
+	       (nested-in-environment pre-environment-readtable)
+	       (pre-environment-readtable nil)
+	       (in-load-a-file t)
+	       (Piport (infile fname))
 	       ; (gcdisable t)	; too dangerous: removed for now
 	       ; don't gc when loading, it slows things down
 	       (eof (list nil)))
+	    (cond (nested-in-environment
+		   (apply 'sstatus (list 'uctolc pre-environment-uctolc))))
 	    (do ((form (errset (read Piport eof)) (errset (read Piport eof)))
 		 (lastform "<no form read successfully>"))
-		((eq eof (car form)) (close Piport) t)
+		((eq eof (car form))
+		 (close Piport)
+		 (cond ((not (eq readtable outer-readtable))
+			(apply 'sstatus (list 'uctolc outer-uctolc))))
+		 t)
 		(cond ((null form)
 		       (error "load aborted due to read error after form "
 			      lastform))

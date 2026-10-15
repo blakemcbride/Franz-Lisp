@@ -25,8 +25,8 @@ static char *rcsid =
  * first (newest) frame on the stack.  
  * The standard way to create a frame is to say
  *
- *   errp = Pushframe(class,arg1,arg2);	 /* create and link in new 
- *   					    frame of give class * /
+ *   errp = Pushframe(class,arg1,arg2);	 -- create and link in new
+ *   					    frame of give class
  *
  * poping the frame must be done explicity if the routine was not exited by
  * a non-local goto.  This is done by 
@@ -73,7 +73,7 @@ lispval arg1,arg2;
      * scan for something to match 'class', return if nothing found, or
      * if we must first handle an unwind protect.
      */
-    while( uwpframe = Inlthrow(class,arg1,arg2) )
+    while((uwpframe = Inlthrow(class,arg1,arg2)))
     {
 	/* build error frame description to be use to continue this throw */
 	protect(lispretval = handy = newdot());
@@ -108,6 +108,7 @@ lispval arg1,arg2;
     default: error("Internal  Inonlocalgoto error" ,FALSE);
 		/* NOT REACHED */
     }
+	return(0);
 }
 
 /*
@@ -192,6 +193,7 @@ register struct frame *fram;
     qretfromfr();	/* modified in sed script to point to real function */
 #endif
     /* NOT REACHED */
+	return(0);	/* not reached */
 }
 #endif
 
@@ -267,7 +269,7 @@ Lframedump()
     printf("Frame dump\n");
     for(curp = errp ; curp != (struct frame *)0 ; curp=curp->olderrp)
     {
-	printf("at %x is ",curp);
+	printf("at %p is ",(void *)curp);
 
 	switch(curp->class) {
 	case F_PROG: printf(" prog\n");
@@ -299,7 +301,7 @@ Lframedump()
 
 		
 	default:
-		     printf(" unknown: %d \n",curp->class);
+		     printf(" unknown: %ld \n",(long)curp->class);
 	}
 	fflush(stdout);
     }

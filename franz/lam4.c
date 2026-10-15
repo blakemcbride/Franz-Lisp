@@ -728,13 +728,21 @@ lispval Lfd()
 	    errorh1(Vermisc,"/: non fixnum argument ",
 	    		nil,FALSE,0,lbot->val);
 	temp = lbot->val->i;
-	if(lbot+1==np) return(inewint(1/temp));
+	/* Integer divide by zero traps (SIGFPE) on x86 but silently
+	 * yields 0 on arm64, so raise the signal explicitly, as Lquo does.
+	 */
+	if(lbot+1==np) {
+	    if(temp == 0) kill(getpid(),8);
+	    return(inewint(1/temp));
+	}
 	for(argp = lbot+1; argp < np; argp++)
 	    if(TYPE(argp->val) != INT)
 	        errorh1(Vermisc,"/: non fixnum argument ",
 	    		nil,FALSE,0,argp->val);
-	    else
+	    else {
+		if(argp->val->i == 0) kill(getpid(),8);
 		temp /= argp->val->i;
+	    }
 	return(inewint(temp));
 }
 

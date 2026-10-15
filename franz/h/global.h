@@ -28,7 +28,7 @@
 #define	TRUE	1
 #define EVER	;;
 #define STRBLEN 512
-#if linux_x86_64
+#if unix64
 /* Phase 1c: page size doubled on 64-bit so the SPP and type_len
  * constants (sized as "objects per 512-byte page * 4-byte int slot")
  * still hold when each object's pointer-bearing slot is now 8 bytes.
@@ -81,15 +81,18 @@
 
 /* VecTotSize: the total number of longwords for the data segment of
  * the vector. Takes a byte count and rounds up to nearest long.
+ * (Originally ((x)+3)>>2, which hard-wired 4-byte longs; on 64-bit
+ * that made the allocator and GC sweeper think every vector was twice
+ * its real size and walk off the end of vector pages.)
  */
 
-#define VecTotSize(x)  (((x)+3) >> 2)
+#define VecTotSize(x)  (((x)+sizeof(long)-1) / sizeof(long))
 #define VecTotToByte(x) ((x) * sizeof(long))
 
 /* these vector size macros determine the number of complete objects
    in the vector
  */
-#define VecSize(x) 	((x) >> 2)
+#define VecSize(x) 	((x) / sizeof(long))
 #define VecWordSize(x)	((x) >> 1)
 #define VecByteSize(x)	(x)
 
@@ -123,7 +126,7 @@ extern struct atom nilatom, eofatom;
 #define errorh2 errh2
 #endif
 
-#if linux_x86_64
+#if unix64
 /* Phase 1b: OFFSET is a runtime variable (the base of an mmap'd
  * heap), not the compile-time 0 it was on the original i386 port.
  * CNIL is used as a sentinel "less than any heap pointer". On Linux
@@ -160,7 +163,7 @@ extern char typetable[];  /*  the table with types for each page  */
  * the pointer. OFFSET is a runtime heap base on Linux (set by
  * heap_init() in alloc.c).
  */
-#if linux_x86_64
+#if unix64
 #define ATOX(a1)	((((uintptr_t)(a1)) - OFFSET) >> 10)
 /* TYPE classifies a pointer by its page-tag in typetable[]. On
  * x86_64 we have to bounds-check against the heap range -- static

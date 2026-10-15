@@ -87,7 +87,7 @@ long *top, *bot, mul;
 
     work.low = 0; work.high = 0;
     for (p = top; p >= bot; p--) {
-        emul(*p, mul, add, &work);
+        emul(*p, mul, add, (long *)&work);
         *p = work.low & 0x3fffffff;
         add = work.high;
         add <<= 2;
@@ -95,6 +95,7 @@ long *top, *bot, mul;
         if (work.low & 0x40000000) add += 1;
     }
     p[1] = work.low;
+	return(0);
 }
 
 /* dodiv -- divide an array of base-10^9 limbs by 10^9, returning the
@@ -110,8 +111,8 @@ long *top, *bottom;
     register long *p = bottom;
 
     for (; p <= top; p++) {
-        emul(0x40000000, rem, *p, &work);
-        *p = ediv(&work, 1000000000, &err);
+        emul(0x40000000, rem, *p, (long *)&work);
+        *p = ediv((long *)&work, 1000000000, &err);
         rem = work.high;
     }
     return rem;
@@ -148,7 +149,7 @@ register long nqhat;
     struct vl work;
 
     for (carry = 0; utop >= ubot; utop--) {
-        emul(nqhat, *--vtop, carry + *utop, &work);
+        emul(nqhat, *--vtop, carry + *utop, (long *)&work);
         carry = work.high;
         handy = work.low;
         *utop = handy & 0x3fffffff;
@@ -195,7 +196,7 @@ register long div;
         carry >>= 2;
         work.low = handy;
         work.high = carry;
-        *bot = ediv(&work, div, &err);
+        *bot = ediv((long *)&work, div, &err);
         carry = work.high;
     }
     return carry;
@@ -216,6 +217,7 @@ long *top, *bot;
         if (work & 0x80000000) carry -= 2;
     }
     p[1] = work;
+	return(0);
 }
 
 /* dsrsh -- right-shift a bignum array by ncnt bits with mask. */
@@ -261,11 +263,11 @@ register long *uj, *v1;
         if (handy & 2) handy2 |= 0x80000000;
         handy >>= 2;
         work1.low = handy2; work1.high = handy;
-        qhat = ediv(&work1, *v1, &err);
+        qhat = ediv((long *)&work1, *v1, &err);
         rhat = work1.high;
     }
 again:
-    emul(qhat, v1[1], 0, &work1);
+    emul(qhat, v1[1], 0, (long *)&work1);
     handy2 = uj[2]; handy = rhat;
     if (handy & 1) handy2 |= 0x40000000;
     if (handy & 2) handy2 |= 0x80000000;
@@ -290,7 +292,7 @@ long *hi, *lo;
     struct vl work;
     register long rlo;
 
-    emul(mul1, mul2, add, &work);
+    emul(mul1, mul2, add, (long *)&work);
     add = work.high;
     add <<= 2;
     if ((rlo = work.low) < 0) add += 2;
@@ -341,6 +343,7 @@ long mul, add;
             ptr->s.CDR = (lispval) 0;
         }
     }
+	return(0);
 }
 
 /* adbig -- bignum addition via stack-allocated limb arrays.
@@ -426,7 +429,7 @@ struct s_dot *a, *b;
     for (q = sb; q > sc; *--s = carry)
         for ((r = sa, s = (q--) - lb, carry = 0); r > sb; ) {
             carry += *--s;
-            emul(*q, *--r, carry, &work);
+            emul(*q, *--r, carry, (long *)&work);
             test = work.low;
             carry = work.high << 2;
             if (test < 0) carry += 2;
@@ -461,4 +464,5 @@ long *quo, *rem;
     emul(p1, p2, add, work);
     *quo = ediv(work, dv, &err);
     *rem = *work;
+	return(0);
 }

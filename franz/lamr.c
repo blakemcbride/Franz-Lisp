@@ -294,7 +294,7 @@ lispval
 Lputloc()
 	{
 	chkarg(2,"putloc");
-	if(TYPE((lbot+1)->val)!=BCD);
+	if(TYPE((lbot+1)->val)!=BCD)
 		error("FIRST ARGUMENT TO PUTLOC MUST BE FUNCTION",FALSE);
 	(lbot)->val->bcd.loctab = (lbot+1)->val;
 	return((lbot+1)->val);
@@ -356,6 +356,7 @@ Lreplace()
 						 nil,FALSE,0,a1);
 		}
 	/* NOTREACHED */
+	return(nil);	/* not reached */
 	}
 
 /* Lvaluep */

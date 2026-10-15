@@ -9,7 +9,7 @@ built the system per [BUILD.md](BUILD.md) — i.e. you have working
 ```sh
 $ bin/lisp
 Franz Lisp, Opus 38
--> [load /…/lisplib/common0.l]
+[load /…/lisplib/common2.l]
 …
 ->
 ```
@@ -78,10 +78,9 @@ inc
 1000000000000
 ```
 
-`+ - *` and `times` work for fixnums (≤ 30 bits); `times` chains
-to bignums automatically when results overflow. Bignum products
-beyond 60 bits currently wrap or hang (see BUILD.md "What doesn't
-work").
+`+ - *` work for fixnums (≤ 30 bits); `times`, `plus` and the
+other generic arithmetic functions switch to bignums automatically
+when a result overflows.
 
 ### Loading source from a file
 
@@ -268,8 +267,8 @@ Known limitations are catalogued in [KNOWN-BUGS.md](KNOWN-BUGS.md).
   …): see `man/liszt.1` or run `bin/liszt -h`. The doc set in
   `doc/Franz_Lisp_July_1983.pdf` covers the language at length.
 - Tracing, the stepper, defstruct, flavors, the CMU file
-  package: all loaded as part of `bin/lisp` startup but not
-  documented here. The classic Franz Lisp manual chapters
+  package: all available in `bin/lisp` (autoloaded on first use)
+  but not documented here. The classic Franz Lisp manual chapters
   (`doc/ch11.n` "trace package", `ch13.n` "CMU top level",
   `ch14.n` "stepper", `ch16.n` "lisp editor") are the original
   references.

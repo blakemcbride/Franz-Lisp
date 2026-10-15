@@ -11,6 +11,7 @@ static char *rcsid =
  */
 
 #include "global.h"
+#include <alloca.h>
 #include "frame.h"
 #include <signal.h>
 #include <sys/types.h>
@@ -24,7 +25,7 @@ Lreadli()
 {
 	register lispval work, handy;
 	register FILE *p;
-	register char *string; char *alloca();
+	register char *string;
 	FILE *fstopen();
 	lispval Lread();
 	int count;
@@ -93,6 +94,7 @@ Lreadli()
 			return(work);
 	}
 	/* NOTREACHED */
+	return(nil);	/* not reached */
 }
 
 lispval
@@ -228,6 +230,7 @@ Lkilcopy()
 	if(fork()==0) {
 		abort();
 	}
+	return(nil);
 }
 
 lispval

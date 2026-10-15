@@ -250,6 +250,7 @@ Ndo()
 		error("do: neither list nor atom follows do", FALSE);
 	    }
 		/* NOTREACHED */
+	return(nil);	/* not reached */
 }
 
 lispval
@@ -276,7 +277,7 @@ Nprogv()
 		/* Before: (np++)->val = eval(handy->d.car);*/
 		TNP;
 	}
-	/*asm("# Here is where rebinding is done");	 /* very cute */
+	/*asm("# Here is where rebinding is done");	 -- very cute */
 	for(handy=lbot[1].val,vars=lbot+3; handy!=nil; handy=handy->d.cdr) {
 	    namptr->atm = handy->d.car;
 	    ++namptr;				/* protect against interrupts

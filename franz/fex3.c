@@ -17,9 +17,9 @@ static int pagsiz, pagrnd;
 /*
  *Ndumplisp -- create executable version of current state of this lisp.
  */
-#include "aout.h"   /* stub on linux_x86_64; needed by Lgetaddress below */
+#include "aout.h"   /* stub on unix64; needed by Lgetaddress below */
 
-#if linux_x86_64
+#if unix64
 /* dumplisp is deferred in this port (PortPlan.md) -- writing the
  * running image back to an a.out file makes no sense on Linux/ELF
  * and the unexec-style replacement is a separate large project.
@@ -461,14 +461,14 @@ Ndumplisp()
 #endif	EUNICE_UNIX_OBJECT_FILE_CFASL
 }
 #endif
-#if linux_x86_64
+#if unix64
 /* Linux has no vadvise(2). The closest analogue is madvise(2) but
  * none of the call sites currently care about the hint, so stub.
  * If page-access hinting becomes useful, switch to madvise.
  */
-pagerand() { }
-pageseql() { }
-pagenorm() { }
+pagerand() { return(0); }
+pageseql() { return(0); }
+pagenorm() { return(0); }
 #elif (os_4_1 | os_4_1a | os_4_1c | os_4_2| os_4_3)
 
 #if (os_4_2 | os_4_3)

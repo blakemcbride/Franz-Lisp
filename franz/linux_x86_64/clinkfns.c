@@ -158,6 +158,7 @@ struct bindspec *bindtab;
 	uctolc = ouctolc;
 
 	Restorestack();
+	return(0);
 }
 
 

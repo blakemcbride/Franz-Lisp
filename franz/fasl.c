@@ -21,7 +21,7 @@ static char *rcsid =
 #include "structs.h"
 #include "frame.h"
 
-#if i386_4_3 || linux_x86_64
+#if i386_4_3 || unix64
 #define in_c 1
 #endif
 
@@ -742,6 +742,7 @@ clrtt(flag)
 		else tement->fcn = fnb->bcd.start;
 	    }
 	}
+	return(0);
 }
 
 /* chktt - builds a list of transfer table entries which don't yet have
@@ -802,5 +803,6 @@ add_offset(addr, relocoffset)
 register int *addr;
 {
  *addr += relocoffset;
+	return(0);
 }
 #endif

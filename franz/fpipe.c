@@ -57,7 +57,7 @@ Nioreset() {
 	 * (was BSD stdio). On Linux there's no equivalent loop -- fclose
 	 * on individual ports is handled per-port. Stub for now.
 	 */
-#if linux_x86_64
+#if unix64
 	(void)NiorUtil;
 #else
 	_fwalk(NiorUtil);
@@ -109,6 +109,7 @@ FILE *p;
 	}
 	/* Heavens above knows this could be disasterous in makevals() */
 	error("Ran out of Ports",FALSE);
+	return(nil);	/* not reached */
 }
 
 #endif	/* RTPORTS */
@@ -118,7 +119,7 @@ fstopen(base,count,flag)
 char *base;
 char *flag;
 {
-#if linux_x86_64
+#if unix64
 	/* On glibc the right tool is fmemopen(3): create a FILE*
 	 * backed by a caller-supplied memory buffer. The original
 	 * fstopen built one by hand by poking BSD FILE internals
@@ -145,11 +146,15 @@ char *flag;
 	p->_file = -1;
 #endif
 	return(p);
-#endif /* linux_x86_64 */
+#endif /* unix64 */
 }
 
+/* Not built on the 64-bit port: gcc and clang both expand alloca() as a
+ * builtin, so calls never reached this function anyway; callers use
+ * <alloca.h>.
+ */
 #ifdef SPISFP
-#ifndef i386_4_3
+#if !i386_4_3 && !unix64
 char *
 alloca(howmuch)
 register int howmuch;

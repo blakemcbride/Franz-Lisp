@@ -22,5 +22,8 @@ scriptcatall: ${AllSrc}
 	@../scriptcat . utils ${AllSrc}
 
 
+# Only remove in-tree build products. (This used to `rm ${AllObj}`,
+# i.e. installed binaries under /usr/lib/lisp, and failed whenever
+# they didn't exist -- which is always, since nothing installs them.)
 clean:
-	rm ${AllObj}
+	rm -f append tackon *.o

@@ -116,11 +116,13 @@ lispval
 Lrandom()
 {
 	register int curval;
-	float pow();
 
 	curval = rand();	/* get numb from 0 to 2**31-1 */
 
-	if(np==lbot) return(inewint(curval-(int)pow((double)2,(double)30)));
+	/* was (int)pow(2.0,30.0) with pow declared `float': pow returns
+	 * double, so the result read from the float register was garbage
+	 * on arm64. */
+	if(np==lbot) return(inewint(curval-(1<<30)));
 
 	if((TYPE(lbot->val) != INT)
 	    || (lbot->val->i <= 0)) errorh1(Vermisc,"random: non fixnum arg:",
@@ -246,7 +248,7 @@ Lctcherr()
 	/* if not extra args */
 	if(handy == nil)
 	{
-	  errorh(type,messg->a.pname,valret,(int)contuab->i,(int)uniqid->i);
+	  return(errorh(type,messg->a.pname,valret,(int)contuab->i,(int)uniqid->i));
 	}
 	datum1 = handy->d.car;
 	handy = handy->d.cdr;
@@ -254,12 +256,12 @@ Lctcherr()
 	/* if one extra arg */
 	if(handy == nil)
 	{
-	  errorh1(type,messg->a.pname,valret,(int)contuab->i,(int)uniqid->i,datum1);
+	  return(errorh1(type,messg->a.pname,valret,(int)contuab->i,(int)uniqid->i,datum1));
 	}
 
 	/* if two or more extra args, just use first 2 */
 	datum2 = handy->d.car;
-	errorh2(type,messg->a.pname,valret,(int)contuab->i,(int)uniqid->i,datum1,datum2);
+	return(errorh2(type,messg->a.pname,valret,(int)contuab->i,(int)uniqid->i,datum1,datum2));
 }
 
 /*
@@ -293,6 +295,7 @@ LMakhunk()
 	else
 		error("*makhunk: First arg must be an fixnum",FALSE);
 	/* NOTREACHED */
+	return(nil);	/* not reached */
 }
 
 /*
@@ -327,6 +330,7 @@ Lcxr()
 				error("cxr: Arg outside of hunk range", FALSE);
 	}
 	/* NOTREACHED */
+	return(nil);	/* not reached */
 }
 
 /*
@@ -418,6 +422,7 @@ Lhunksize()
 	else
 		error("hunksize: First argument must me a hunk", FALSE);
 			/* NOTREACHED */
+	return(nil);	/* not reached */
 }
 
 /*
@@ -530,6 +535,7 @@ Ibalmod(invmodp)
 	else
 		error("*mod: Arguments must be fixnums", FALSE);
 	/* NOTREACHED */
+	return(nil);	/* not reached */
 }
 
 invmod (n,modulus)
@@ -556,6 +562,7 @@ step3:
 	else if (a2 != 1) goto step2;
 	else return (y2);
 	/* NOTREACHED */
+	return(0);	/* not reached */
 }
 
 lispval
@@ -615,6 +622,7 @@ bndchk()
 	for(npt=orgbnp; npt < bnp; npt++)
 	{  if((uintptr_t) npt->atm < (uintptr_t) in2) abort();
 	}
+	return(0);
 }
 
 /*
@@ -720,7 +728,9 @@ Lsprintf()
 	{
 	    char *fmt = (char *)argv[0];
 	    switch (nargs) {
-	    case 1: snprintf(sbuf, sizeof sbuf, fmt); break;
+	    /* fmt is the user's format string by design; the unused trailing
+	     * argument just keeps it from being the sole argument. */
+	    case 1: snprintf(sbuf, sizeof sbuf, fmt, 0); break;
 	    case 2: snprintf(sbuf, sizeof sbuf, fmt, argv[1]); break;
 	    case 3: snprintf(sbuf, sizeof sbuf, fmt, argv[1], argv[2]); break;
 	    case 4: snprintf(sbuf, sizeof sbuf, fmt, argv[1], argv[2], argv[3]); break;
@@ -991,7 +1001,7 @@ lispval handy;
 #ifdef GCSTRINGS
 		{ extern char purepage[];
 
-		  if(purepage[((int)handy)>>9]==0)
+		  if(purepage[ATOX(handy)]==0)
 			return((lispval)pinewstr((char *)handy));}
 		
 #endif
@@ -1010,6 +1020,7 @@ lispval handy;
 		error(" bad type to purcopy ",FALSE);
 	/* NOTREACHED */
     }
+	return(nil);
 }
 
 /*
@@ -1178,6 +1189,7 @@ LIvref()
     }
     error("int:vref: impossible class detected",FALSE);
     /* NOTREACHED */
+	return(nil);	/* not reached */
 }
 
 /*
@@ -1288,7 +1300,7 @@ lispval v,w;
 
     if(vsize != wsize) return(FALSE);
 
-    vsize /= sizeof(int);	/* determine number of entries */
+    vsize /= sizeof(lispval);	/* determine number of entries */
 
     for(i = 0 ; i < vsize ; i++)
     {

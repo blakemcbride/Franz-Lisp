@@ -1,6 +1,6 @@
 (int:setsyntax '\; 'splicing 'zapline)
-;; init.l -- bootstrap script fed into rawlisp by the `lisp` wrapper
-;; (bin/lisp) before stdin. Sets the build:* variables that buildlisp.l
+;; init.l -- bootstrap script that rawlisp loads before reading stdin;
+;; the `lisp` wrapper (bin/lisp) names it in $FRANZ_INIT. Sets the build:* variables that buildlisp.l
 ;; needs and triggers the library load.
 ;;
 ;; The original Franz Lisp captured this state via dumplisp(); we don't
@@ -18,9 +18,8 @@
 
 (setq lisp-object-directory build:dir)
 
-(load (concat build:dir "/buildlisp"))
-
-;; buildlisp.l unconditionally clobbers lisp-library-directory (its
-;; (or (boundp ...) ...) check has the boundp commented out), so set
-;; it again after the load.
+;; Set this *before* buildlisp: toplevel.l bakes it into the autoload
+;; paths for trace, step, defstruct, format, ... as it loads.
 (setq lisp-library-directory build:dir)
+
+(load (concat build:dir "/buildlisp"))

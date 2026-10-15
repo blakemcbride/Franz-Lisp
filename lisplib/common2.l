@@ -696,6 +696,13 @@
 	 names))
 
 (defun environment-syntax fexpr (names)
+   ; convert a private copy, so that `load' (which binds readtable
+   ; around each file) can undo a file's syntax switch when it ends.
+   ; See load-a-file in common1.l.
+   (cond ((and in-load-a-file (null pre-environment-readtable))
+	  (setq pre-environment-readtable readtable
+		pre-environment-uctolc (status uctolc))))
+   (setq readtable (makereadtable))
    (mapc '(lambda (class)
 	     (caseq class
 		 (maclisp (cvttomaclisp))

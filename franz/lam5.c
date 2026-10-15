@@ -11,6 +11,7 @@ static char *rcsid =
  */
 
 #include "global.h"
+#include <alloca.h>
 #include "chkrtab.h"
 #include <ctype.h>
 char *strcpy();
@@ -33,7 +34,7 @@ int kind, slashify; 	/* kind = 0 => explode to characters
 			*/
 {
 	int typ, i;
-	char ch, *strb, strbb[BUFSIZ], *alloca();  /* temporary string buffer */
+	char ch, *strb, strbb[BUFSIZ];  /* temporary string buffer */
 	register lispval last, handy;
 	extern int uctolc;
 	register char *cp;
@@ -126,7 +127,7 @@ int kind, slashify; 	/* kind = 0 => explode to characters
 				
 	case INT:
 		strb = strbb;
-		sprintf(strb, "%d", lbot->val->i);
+		sprintf(strb, "%ld", lbot->val->i);
 		break;
 	case DOUB:
 		strb = strbb;
@@ -175,7 +176,7 @@ int kind, slashify; 	/* kind = 0 => explode to characters
 	    strbuf[1] = NULL_CHAR ;     /* set up for getatom */
 	    atmlen = 2;
 
-	    for(i=0; ch = strb[i++]; ) {
+	    for(i=0; (ch = strb[i++]); ) {
 		switch(kind) {
 
 		  case 0: strbuf[0] = hash = ch;   /* character explode */
@@ -492,6 +493,7 @@ Lfloat()
 	  default: errorh1(Vermisc,"Bad argument to float",nil,FALSE,0,handy);
 	  /* NOTREACHED */
 	}
+	return(nil);
 }
 double
 Ifloat(handy)

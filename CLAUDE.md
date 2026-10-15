@@ -4,74 +4,72 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Franz Lisp (Opus 38.92/38.93) — the Berkeley dialect of Lisp from the early 1980s — being ported to **x86_64 Linux**. The original distribution targeted vax/tahoe/68k/i386 BSD; in this tree the C kernel is the only kept piece, and it is in the middle of a multi-phase port. See `PortPlan.md` for the staged plan and current phase.
+Franz Lisp (Opus 38.92/38.93) — the Berkeley dialect of Lisp from the early 1980s — running on **64-bit Unix: Linux x86_64 and macOS (Apple Silicon)**. The original distribution targeted vax/tahoe/68k/i386 BSD; this tree keeps the C kernel, the Lisp library, and the liszt compiler (with its Lisp-to-C back end). `PortPlan.md` and `CompilerPlan.md` record how the port was done.
 
-The port's *immediate* goal is a working **interpreter** (no compiler, no fasl, no dumplisp). Code paths for those features still exist in the source but are intentionally inert on this target.
-
-## Build (current state — Phase 0 complete)
+## Build
 
 ```
-./lispconf linux_x86_64    # writes franz/h/lconf.h (one platform supported)
-make smoke                 # Phase 0: compile one kernel .c file
-make kernel                # Phase 1: compile every kernel .c file
-make rawlisp               # Phase 2: link rawlisp (the bare interpreter)
-make clean
+./lispconf                 # detect host; writes franz/h/lconf.h (./lispconf -l lists targets)
+make smoke                 # compile one kernel .c file
+make kernel                # compile every kernel .c file
+make rawlisp               # link rawlisp (the bare interpreter)
+make clean                 # every target's objects and rawlisp
+make distclean             # clean + lconf.h, doc/ build, .so/.x output
 
-bin/lisp                   # full Franz Lisp -- rawlisp + library auto-loaded
+bin/lisp                   # full Franz Lisp -- rawlisp + library loaded from source
+bin/liszt foo.l            # compile foo.l -> foo.so
+bin/test                   # interpreted regression suite (tests/)
+bin/test-compiled          # the same suite compiled with liszt
 ```
 
-`make slow`, `make fast`, and `make install` are deliberately disabled — they invoke the multi-stage bootstrap that builds liszt and dumps a Lisp image. We don't need either: `bin/lisp` re-loads the library from `.l` source on every startup (cheap on modern hardware), and liszt isn't ported.
+`make slow`, `make fast`, and `make install` are disabled: they run the original bootstrap that dumps Lisp images with `dumplisp`, which isn't implemented. `bin/lisp` loads the library from `.l` source on every startup instead (about a second).
 
-The library is loaded by `bin/lisp` via `lisplib/init.l`, which sets up `;` as the comment reader-macro and runs `buildlisp.l`. Override the library path with `LISPLIB=/path/to/lisplib bin/lisp`.
+`bin/lisp` sets `FRANZ_INIT` to `lisplib/init.l`, and `rawlisp` loads that file before reading stdin (`Ntpl` in `lisp.c`), so stdin stays the user's terminal. Don't pipe it in with `cat init.l - | rawlisp`: that leaves `cat` blocked on the terminal after `(exit)`. `init.l` sets up `;` as the comment reader-macro and runs `buildlisp.l`. Override the library path with `LISPLIB=/path/to/lisplib bin/lisp`. `bin/liszt` does the same with `lisplib/liszt-init.l`, which ends with `(reset)` so control passes to `lisztinit`.
 
-What works: `defun`, `defmacro`, `cond`, `let`, recursion, `mapcar`, `princ`, `reverse`, `length`, the break loop, fixnum arithmetic, bignum multiplication (`times`), reading/writing files via `load`, **and the compiler** — `bin/liszt foo.l` produces `foo.so`, loaded into `bin/lisp` via `(cfasl 'foo.so 'init 'init-fn "subroutine" "")`, with measured 2-4× speedup over interpreted on recursive-arithmetic code (CompilerPlan.md).
+The compiler: `bin/liszt foo.l` emits C, and `lisplib/lisztcc` compiles it to `foo.so`, which `(cfasl 'foo.so 'init 'init-fn "subroutine" "")` loads into `bin/lisp` with `dlopen`. Compiled code runs 2-4× faster than interpreted on recursive-arithmetic code.
 
-What's missing or broken: dumplisp (saving images), `(showstack)`/`(baktrace)`, the BSD a.out `ffasl` (Lisp-to-C `cfasl` works; `ffasl` doesn't), and bignum products that exceed 60 bits.
+Not implemented: `dumplisp` (saving images), `(showstack)`/`(baktrace)` (need a C stack unwinder), and the BSD a.out `ffasl` (`cfasl` of liszt output works).
 
-The per-arch Makefile lives at `franz/linux_x86_64/Makefile` and uses modern gcc with porting-friendly flags (`-std=gnu89`, `-Wno-implicit-function-declaration`, `-Wno-int-conversion`, etc.). Phase 1 will tighten these as cast issues are fixed at the source level.
+**Targets.** `lispconf` accepts `linux_x86_64`, `linux_arm64`, `macos_arm64`, `macos_x86_64` (or detects the host) and writes `#define <target> 1` to `franz/h/lconf.h` (generated, not tracked). `config.h` maps any of them to the internal macro **`unix64`** — kernel code guards the 64-bit port with `#if unix64`, never with a target name — plus `m_64bit` (LP64 code paths), `os_linux`/`os_macos`, and `MACHINE` (real CPU, for `(status features)`). Each target builds in `franz/<target>/`; the top-level Makefile and `bin/lisp`/`bin/liszt` read the target back from `lconf.h`. The per-arch *sources* and build rules exist once, in `franz/linux_x86_64/`; the other target directories hold only a short Makefile (`VPATH` + `include ../linux_x86_64/Makefile`) and build output. Never copy sources into a target directory.
+
+The shared Makefile uses gcc flags on Linux and Apple-clang flags on Darwin (see `macOS.md`). Both silence only K&R-style diagnostics (implicit int, implicit declarations, unprototyped calls, int/pointer conversion); the build is otherwise warning-free, so treat any new warning as a possible bug. Every object depends on every header in `franz/h/`.
 
 `RootDir` in the top-level Makefile resolves at make time via `$(shell pwd)`, so the tree can live anywhere.
 
 ## Repository layout
 
-- `franz/` — C kernel of the interpreter. ~30 machine-independent `.c` files plus headers in `franz/h/`. **All vax/tahoe/68k/i386 source has been deleted** (see git history if you need it).
-- `franz/linux_x86_64/` — the only per-arch directory. Holds the Makefile, `callg.c` (x86_64 ABI varargs trampoline), `bignum.c` (the 16-or-30-bit-halfword bignum kernels ported from `reference/i386/`), and `arch.c` (inewint/blzero/prunei, PORTABLE_FRAME helpers, tynames[], stubs for things that don't translate to x86_64).
-- `franz/h/` — shared headers. `config.h` reads `lconf.h` (written by `lispconf`) and configures the kernel for the active platform. `aout.h` and `lispo.h` are local stubs (the originals were symlinks to `/usr/include/a.out.h`, which doesn't exist on Linux).
-- `cliszt/` — Lisp source for the **liszt compiler**. Kept around as future reference; the per-arch subdirs (`vax/`, `68k/`, `i386/`, `in-c/`) and `Makefile` are gone. Liszt is deferred (Phase 6+) and would need an entirely new x86_64 codegen.
-- `lisplib/` — Lisp library loaded by the interpreter. `.l` source remains; `autorun/` (per-machine bootstrap files) was deleted. See `lisplib/ReadMe` for descriptions of individual `.l` files. The `manual/` subdir holds `.r` files for the in-Lisp `help` command.
-- `utils/` — `append` and `tackon` (small C helpers). May or may not be needed in the final port.
+- `franz/` — C kernel of the interpreter. ~30 machine-independent `.c` files plus headers in `franz/h/`. Only the 64-bit Unix configuration is present (git history has the vax/tahoe/68k/i386 sources).
+- `franz/linux_x86_64/` — the per-arch sources and build rules, shared by every target; also the Linux x86_64 build directory. Holds the Makefile, `callg.c` (foreign-call trampoline: dispatches on argument count with direct C calls), `bignum.c` (30-bit-halfword bignum kernels in portable C), `clinkfns.c` (links liszt-compiled code into the running Lisp), and `arch.c` (inewint/blzero/prunei, PORTABLE_FRAME helpers, tynames[], `Lcfasl`, stubs for what has no 64-bit equivalent). `franz/macos_arm64/`, `franz/macos_x86_64/`, `franz/linux_arm64/` are thin build directories that include its Makefile.
+- `franz/h/` — shared headers. `config.h` reads `lconf.h` (written by `lispconf`) and configures the kernel. `aout.h` and `lispo.h` are local stubs for BSD a.out headers that modern systems don't have.
+- `cliszt/` — Lisp source for the **liszt compiler**, loaded from source by `bin/liszt` (C back end, `#+for-c`).
+- `lisplib/` — the Lisp library, loaded from source by the interpreter. See `lisplib/ReadMe` for descriptions of individual `.l` files. The `manual/` subdir holds `.r` files for the in-Lisp `help` command. `lisztcc` is the C-compile step liszt runs.
+- `tests/` — `harness.l` (the `chk-eq`/`chk-err` macros) and `test-all.l` (the cases) for `bin/test` and `bin/test-compiled`.
+- `reference/` — original i386 sources kept for comparison; not built.
+- `utils/` — `append` and `tackon` (small C helpers from the original distribution); not built.
 - `doc/` — troff `-me` source for the Lisp manual.
 - `man/` — Unix man pages.
 - `lisp` symlink → `.` and `liszt` symlink → `cliszt`. Don't delete; `lisplib/lisztcc` references them.
-- `PortPlan.md` — the porting strategy and phase definitions. Read before any non-trivial change.
 
 ## Architecture (the single most important thing to internalize)
 
 The runtime uses a **page-table-tagged-pointer** value representation:
 
 - `lispval` is `union lispobj *` — every value is a real heap pointer; there are no immediate fixnums (small ints are boxed too).
-- Object **type** is determined by indexing a parallel array `typetable[]` with `((ptr - OFFSET) >> 9)`. So every 512-byte page holds objects of one type.
+- Object **type** is determined by indexing a parallel array `typetable[]` with `ATOX(ptr)` = `(ptr - OFFSET) >> 10`. So every `LBPG` = 1024-byte page holds objects of one type.
 - Types are enumerated in `franz/h/ltypes.h` (ATOM, INT, DTPR (cons), DOUB, ARRAY, HUNK*, VECTOR, etc.).
-- Allocation uses fixed `*SPP` constants ("structures per page") so each page is fully sub-divided. On x86_64 these constants will need to change because struct sizes double.
-- GC is precise, with a mark bitmap (`bitmapi[]` in `alloc.c`) at 1 bit per long word of heap.
-
-This scheme is *pointer-width-independent in principle* but the C code bakes 32-bit assumptions in many places (cast-to-int macros, fixed shift counts, `OFFSET=0`). Resolving these is the bulk of Phase 1.
-
-## How the original system worked (deferred for later phases)
-
-Reference only — none of this currently runs on Linux:
-
-1. **Raw kernel** (`rawlisp`) — interpreter with no library loaded. Phase 2 target.
-2. **`snlisp`** — `rawlisp` loads every library `.l` from source and calls `dumplisp` to write a memory image. Phase 5 will replace this with always-source-load (no dumplisp needed).
-3. **`liszt`** — Lisp-coded compiler from `cliszt/`, dumped via `cmake.l`. Phase 6+.
-4. **fasl / cfasl / ffasl** — runtime loading of compiled `.o` files. Depends on liszt and on an ELF-based replacement for the original a.out loader. Phase 6+.
+- Allocation uses fixed `*SPP` constants ("structures per page") so each page is fully sub-divided. `LBPG` is 1024 (twice the 32-bit value) so that, with 8-byte slots, the slot counts per page match the `*SPP` and `type_len` constants.
+- GC is precise, with a mark bitmap (`bitmapi[]` in `alloc.c`) at 1 bit per `long` of heap (4 bitmap ints per page).
+- Sizes in the allocator are in `long`s and bytes: `type_len` counts long-sized slots, vector size headers are in bytes, and `VecTotSize`/`VecSize` divide by `sizeof(long)`. Never hard-code 4 or 512.
 
 ## Conventions and gotchas
 
-- **File extensions.** `.l` = Lisp source, `.o` from `liszt` = fasl-format compiled Lisp (*not* a C object), `.x` = lxref output, `.s` = assembly. The C kernel also produces `.o` files; same directory but different format. The build sequencing keeps them distinct.
-- **`OFFSET` is a runtime `uintptr_t`** declared `extern` in `global.h`, defined in `data.c`, and set by `heap_init()` in `alloc.c` on first allocation. The Lisp heap is a single mmap'd region of `TTSIZE * 512` bytes (currently 32 MB); `xsbrk`/`ysbrk`/`csegment` all bump-allocate from it via `lisp_heap_alloc()`. `OFFSET` equals the base of that region.
-- **`lispval` size doubles on x86_64.** `struct dtpr` was 8 bytes (pair of 32-bit pointers); now 16. To keep all the `*SPP` and `type_len` constants stable, `LBPG` was doubled to 1024 on x86_64 (Phase 1c) — slot count per page is unchanged because both slot size and page size doubled. `ATOX` shifts `>> 10` instead of `>> 9` accordingly. Bitmap density is per-long, so it works out the same on both platforms.
-- **`(int)ptr` casts are bugs.** They truncate pointers on x86_64. Most live in macros (`ATOX`, `UPTR`, the `setbit`/`readbit` family in `alloc.c`). Phase 1 work item 1a.
-- **Stdio peeking.** Original code reads `FILE->_cnt`/`_ptr` directly. We define `torek_stdio` so the portable `getc`/`ungetc` `peekc()` is used. Don't reintroduce `_cnt`/`_ptr` references on glibc.
-- **Source style.** K&R C; some files have implicit `int` returns and unprototyped functions. Don't modernize cosmetically — wait until Phase 1 cast-fix work covers a file naturally.
-- **No automated test suite.** Verification is empirical: does the kernel compile, does `rawlisp` run, does the library load, do simple expressions evaluate.
+- **File extensions.** `.l` = Lisp source, `.so` = liszt-compiled Lisp (a shared object for `cfasl`), `.x` = lxref output, `.s` = assembly. The C kernel's `.o` files are ordinary C objects.
+- **`OFFSET` is a runtime `uintptr_t`** declared `extern` in `global.h`, defined in `data.c`, and set by `heap_init()` in `alloc.c` on first allocation. The Lisp heap is a single mmap'd region of `TTSIZE * LBPG` bytes (32 MB); `xsbrk`/`ysbrk`/`csegment` all bump-allocate from it via `lisp_heap_alloc()`. `OFFSET` equals the base of that region.
+- **Pointers are 64-bit and live above 4 GB on macOS.** `(int)ptr` casts truncate them. So does calling an undeclared function that returns a pointer or `long` — its result is taken as `int`. Declare such functions (kernel ones go in `h/dfuncs.h`), and check that every pointer-returning function actually `return`s its value: on arm64 a value left in a register by a callee doesn't survive falling off the end of a function.
+- **Variadic C functions need prototypes.** On Apple arm64, variadic arguments are passed on the stack, so calling `execl`, `printf`, etc. without a prototype passes them wrongly. For the same reason the foreign-call trampoline (`callg_`) can't call variadic C functions on Apple arm64.
+- **Integer division by zero doesn't trap on arm64.** Fixnum `/` and `mod` raise SIGFPE explicitly (as `quotient` does); keep that pattern for any new division.
+- **Use `%ld`/`%p` in printf formats** for `long`s and pointers, and `%lf` (not BSD `%F`) to `scanf` a `double`.
+- **`load` binds `readtable` per file.** Library files that begin with `(environment-maclisp)` (struct, loop, hash, flavors) switch to a private Maclisp-syntax readtable that ends with the file; files loaded from inside them are read with the caller's syntax. See `load-a-file` (common1.l) and `environment-syntax` (common2.l).
+- **Stdio peeking.** `torek_stdio` is defined so the portable `getc`/`ungetc` `peekc()` is used. Don't reintroduce `FILE->_cnt`/`_ptr` references.
+- **Source style.** K&R C; some files have implicit `int` returns and unprototyped functions. Don't modernize cosmetically.
+- **Testing.** Run `bin/test` and `bin/test-compiled` after any kernel or library change; both should report all cases passed.

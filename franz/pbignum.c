@@ -24,7 +24,7 @@ register FILE *useport;
 	top = (sp()) - 1;
 	do {
 		stack(current->s.I);
-	} while(current = current->s.CDR);
+	} while((current = current->s.CDR));
 
 	bot = sp();
 	if (top==bot) {
@@ -53,4 +53,5 @@ register FILE *useport;
 	fprintf(useport,"%ld",*--digitp);
 	while ( digitp > work) fprintf(useport,"%.09ld",*--digitp);
 	Freexs();
+	return(0);
 }

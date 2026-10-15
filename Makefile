@@ -12,6 +12,11 @@
 #   make rawlisp    -- link the raw kernel into an executable
 #                      (Phase 2; currently fails at link time)
 #   make clean
+#   make distclean  -- clean, plus ./lispconf's lconf.h, the manual
+#                      build in doc/, compiled
+#                      Lisp (.so) and lxref (.x) output anywhere in
+#                      the tree, and editor/tool droppings. Leaves
+#                      source edits alone.
 #
 # Targets currently NOT meaningful (re-enabled in later phases):
 #   make slow / fast / install
@@ -22,8 +27,11 @@
 DESTDIR =
 .DEFAULT: smoke
 
-# Set by ./lispconf; only one platform is supported in this port.
-Mach = linux_x86_64
+# The target chosen by ./lispconf, read back from the lconf.h it wrote
+# (`#define macos_arm64 1' -> macos_arm64). Each target builds in
+# franz/<target>/; the shared per-arch sources live in franz/linux_x86_64/.
+ArchDirs = linux_x86_64 linux_arm64 macos_arm64 macos_x86_64
+Mach := $(shell sed -n 's/^\#define \([a-z0-9_]*\) 1$$/\1/p' franz/h/lconf.h 2>/dev/null)
 
 RootDir = $(shell pwd)
 LibDir  = ${DESTDIR}${RootDir}/lisplib
@@ -33,14 +41,20 @@ FranzD  = franz/${Mach}
 
 # --- Phase targets ---
 
-smoke:
+smoke: configured
 	(cd ${FranzD} && $(MAKE) smoke)
 
-kernel:
+kernel: configured
 	(cd ${FranzD} && $(MAKE) allkernel)
 
-rawlisp:
+rawlisp: configured
 	(cd ${FranzD} && $(MAKE) rawlisp)
+
+configured:
+	@if [ -z "${Mach}" ] || [ ! -d "${FranzD}" ]; then \
+	    echo "Not configured: run ./lispconf first (./lispconf -l lists targets)." >&2; \
+	    exit 1; \
+	fi
 
 # Phase 5 placeholders.
 slow fast install:
@@ -48,9 +62,22 @@ slow fast install:
 	 echo "Phase 5 (replace dumplisp with library auto-load)."           ; \
 	 exit 1
 
+# Clean every target's build directory, so switching targets with
+# ./lispconf never leaves stale objects behind.
 clean:
-	(cd ${FranzD} && $(MAKE) clean)
+	for d in ${ArchDirs}; do (cd franz/$$d && $(MAKE) clean) || exit 1; done
 	(cd utils     && $(MAKE) clean) || true
 	rm -f franz/*.o
 
-.PHONY: smoke kernel rawlisp slow fast install clean
+# Remove everything a build can produce. find does not follow the
+# `lisp' -> . and `liszt' -> cliszt symlinks, so nothing is visited twice.
+distclean: clean
+	(cd doc && $(MAKE) distclean)
+	rm -f franz/h/lconf.h
+	find . -path ./.git -prune -o \( -name '*.so' -o -name '*.dylib' \
+	    -o -name '*.x' -o -name '*~' -o -name make.log \) -type f -print \
+	    | xargs rm -f
+	find . -path ./.git -prune -o -name '*.dSYM' -type d -print \
+	    | xargs rm -rf
+
+.PHONY: smoke kernel rawlisp configured slow fast install clean distclean

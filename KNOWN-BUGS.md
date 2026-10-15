@@ -1,9 +1,7 @@
 # KNOWN-BUGS.md
 
-Bugs surfaced by the test suite or by manual exercise of the
-interpreter that are real (not test-expectation issues) but were not
-on the critical path for the port. Documented here so they're not
-forgotten.
+Known gaps and bugs in the interpreter and compiler that aren't fixed
+yet.
 
 ## `(showstack)` / `(baktrace)` are stubs
 

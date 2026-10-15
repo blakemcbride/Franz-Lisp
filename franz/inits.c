@@ -78,6 +78,7 @@ initial()
 	orgnp = np;
 	makenv();
 
+	return(0);
 }
 
 static
@@ -109,6 +110,7 @@ makenv()
 	}
 	matom("environment")->a.clb = env;
 	np--;
+	return(0);
 }
 
 static void re_enable();    /* forward decl; defined below */
@@ -180,11 +182,13 @@ register which;
 	}
 	sigstruck &= ~ (1<<which);
 	Restorestack();
+	return(0);
 }
 delayoff(){
 	sigdelay = FALSE;
 	if(sigstruck)
 		dosig();
+	return(0);
 }
 dosig()
 {
@@ -195,6 +199,7 @@ dosig()
 			if(sigstruck & i)
 				sigcall(which);
 		}
+	return(0);
 }
 SIGTYPE badmr(number) int number;
 {
@@ -209,7 +214,7 @@ re_enable(signo,handler)
 int signo;
 SIGTYPE (*handler)(int);
 {
-#if linux_x86_64
+#if unix64
 	/* sigblock/sigsetmask are deprecated in glibc; the modern
 	 * equivalent is sigprocmask. Unblock just `signo`.
 	 */

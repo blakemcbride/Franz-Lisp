@@ -32,14 +32,12 @@
 
 (setq lisp-object-directory build:dir)
 
-(load (concat build:dir "/buildlisp"))
-
-;; buildlisp.l unconditionally clobbers lisp-library-directory (its
-;; (or (boundp ...) ...) check has the boundp commented out). Reset
-;; the canonical path *after* buildlisp finishes so things like the
-;; liszt *process call to lisp-library-directory/lisztcc find our
-;; actual install root.
+;; Set this *before* buildlisp: toplevel.l bakes it into autoload paths
+;; (trace, defstruct, format, ...) and liszt's *process call uses it to
+;; find lisplib/lisztcc.
 (setq lisp-library-directory build:dir)
+
+(load (concat build:dir "/buildlisp"))
 
 
 ;; Now switch to back-end selection and load the compiler. The reader
@@ -82,3 +80,8 @@
 ;; Don't keep np/lbot in dedicated registers (we don't on x86_64).
 (setq $global-reg$ nil)
 (sstatus feature no-global-reg)
+
+;; Last: unwind the kernel's C-level top level to main's F_RESET frame,
+;; which re-applies 'top-level -- now franz-top-level -- and so calls
+;; user-top-level (lisztinit). bin/liszt loads this file via FRANZ_INIT.
+(reset)

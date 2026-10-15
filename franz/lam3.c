@@ -203,6 +203,8 @@ Lmod()
 			arg1 =(lispval) &fake1;
 			break;
 		case INT:			/* both are fixnums 	  */
+			/* no hardware trap for x % 0 on arm64 */
+			if(arg2->i == 0) kill(getpid(),8);
 			return( inewint ((arg1->i) % (arg2->i)) );
 		default:
 			error("non-numeric argument",FALSE);
@@ -371,7 +373,7 @@ Loblist()
 	     symb = symb-> hshlnk)
 	{
 	    if(TYPE(symb) != ATOM) 
-	    {   printf(" non symbol in hasht[%d] = %x: ",indx,symb);
+	    {   printf(" non symbol in hasht[%d] = %p: ",indx,(void *)symb);
 		printr((lispval) symb,stdout);
 		printf(" \n");
 		fflush(stdout);
@@ -515,6 +517,7 @@ unsigned char *addr;
 	for(i=0; i<=127 && synclass(ctable[i]) != cclass; i++);
 	if(i<=127) *addr = (unsigned char) i;
 	else *addr = '\0';
+	return(0);
 }
 
 

@@ -35,7 +35,7 @@ char **argv,**arge;
 	pbuf pb;
 	
 	environ = arge;
-#if sun_4_2 || sun_4_2beta || i386_4_3 || linux_x86_64
+#if sun_4_2 || sun_4_2beta || i386_4_3 || unix64
 	setlinebuf(stdout);
 #else
 	{extern char _sobuf[]; setbuf(stdout,_sobuf);}
@@ -71,8 +71,22 @@ Ntpl()
 	lispval Lread(),Istsrch();
 
 	if (virgin == 0) {
+		extern char *getenv(const char *);	/* returns a pointer: must be declared */
+		lispval Lload();
+		char *initf;
+
 		fputs((char *)Istsrch(matom("version"))->d.cdr->d.cdr->d.cdr,poport);
 		virgin = 1;
+		/* FRANZ_INIT names a file to load before reading stdin
+		 * (bin/lisp: lisplib/init.l). The launchers used to pipe it
+		 * in with `cat init.l - | rawlisp`, which left cat blocked
+		 * on the terminal after (exit) until another Return. */
+		if((initf = getenv("FRANZ_INIT")) != 0 && *initf) {
+			putc('\n',poport);	/* end the banner line */
+			lbot = np;
+			np++->val = matom(initf);
+			Lload();
+		}
 	}
 	lbot = np;
 	np++->val = P(stdin);

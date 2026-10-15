@@ -619,7 +619,7 @@
 ;--- c-vsize :: extract vsize
 ;
 (defun c-vsize nil
-   (d-vectorsize (cadr v-form) '2))
+   (d-vectorsize (cadr v-form) '3))	; log2 sizeof(long) on 64-bit
 
 (defun c-vsize-byte nil
    (d-vectorsize (cadr v-form) '0))

@@ -4,29 +4,79 @@
 # This is a stripped-down rewrite of the original csh script; the
 # original supported vax/tahoe/68k/sun/dual/pixel/mc500/lisa/i386/vms
 # variants and used cvt.awk (which was missing from the distribution)
-# to splice ifdef-style markers in the Makefiles. With only one
-# platform supported (linux_x86_64), this reduces to writing
-# franz/h/lconf.h.
+# to splice ifdef-style markers in the Makefiles.
 #
-# Usage:  ./lispconf linux_x86_64
+# Usage:  ./lispconf            # detect the host platform
+#         ./lispconf TARGET     # TARGET is one of the names below
+#         ./lispconf -l         # list targets
+#
+# Writes franz/h/lconf.h as `#define <target> 1'. All targets share
+# one configuration, the 64-bit Unix port (config.h maps every target
+# name to the internal macro `unix64'); each target builds in its own
+# directory, franz/<target>/, from the shared per-arch sources in
+# franz/linux_x86_64/. The top-level Makefile and bin/lisp read the
+# target back from lconf.h. Switching targets: make clean, then rerun.
 
 set -eu
 
+TARGETS="linux_x86_64 linux_arm64 macos_arm64 macos_x86_64"
+
+describe() {
+    case "$1" in
+        linux_x86_64) echo "Linux on x86_64 (gcc)" ;;
+        linux_arm64)  echo "Linux on arm64/aarch64 (untested)" ;;
+        macos_arm64)  echo "macOS on Apple Silicon (Apple clang)" ;;
+        macos_x86_64) echo "macOS on Intel (Apple clang; untested)" ;;
+    esac
+}
+
+list() {
+    echo "targets:"
+    for t in $TARGETS; do
+        printf '    %-14s %s\n' "$t" "$(describe "$t")"
+    done
+}
+
+# Map `uname -s`/`uname -m` to a target name.
+detect() {
+    case "$(uname -s)" in
+        Linux)  os=linux ;;
+        Darwin) os=macos ;;
+        *)      os=unknown ;;
+    esac
+    case "$(uname -m)" in
+        x86_64|amd64)  cpu=x86_64 ;;
+        arm64|aarch64) cpu=arm64 ;;
+        *)             cpu=unknown ;;
+    esac
+    echo "${os}_${cpu}"
+}
+
 case "${1:-}" in
-    linux_x86_64) ;;
+    -l|--list|-h|--help)
+        echo "usage: $0 [TARGET]   (no TARGET: detect the host)"
+        list
+        exit 0 ;;
     "")
-        echo "usage: $0 linux_x86_64" >&2
-        exit 1 ;;
+        target=$(detect)
+        how="detected" ;;
     *)
-        echo "$0: unsupported target '$1'" >&2
-        echo "    only 'linux_x86_64' is supported in this port." >&2
+        target=$1
+        how="requested" ;;
+esac
+
+case " $TARGETS " in
+    *" $target "*) ;;
+    *)
+        echo "$0: unsupported target '$target' ($how)" >&2
+        list >&2
         exit 1 ;;
 esac
 
 cat > franz/h/lconf.h <<EOF
 /* this file created by ./lispconf */
-#define linux_x86_64 1
+#define $target 1
 EOF
 
-echo "lispconf: wrote franz/h/lconf.h for target linux_x86_64"
-echo "lispconf: (top-level Makefile already has Mach=linux_x86_64)"
+echo "lispconf: target $target -- $(describe "$target") ($how)"
+echo "lispconf: wrote franz/h/lconf.h; builds in franz/$target/"

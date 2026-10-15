@@ -15,7 +15,7 @@ static char *rcsid =
 
 /* `verify` is a general-purpose ATOM/STRNG -> char* helper used all
  * over the kernel; only its presence in ffasl.c is incidental. Keep
- * it outside the linux_x86_64 gate so the rest of the kernel can
+ * it outside the unix64 gate so the rest of the kernel can
  * link.
  */
 lispval
@@ -43,7 +43,7 @@ char *stabf = 0;
 
 /* `Ilibdir` returns the path to the lisp library, configured via the
  * Lisp variable `lisp-library-directory`. Plain C, used by lam2.c's
- * Lload, kept out of the linux_x86_64 gate.
+ * Lload, kept out of the unix64 gate.
  */
 char *
 Ilibdir()
@@ -71,7 +71,7 @@ tryagain:
  * a Linux replacement would use ELF and dlopen. Until then most of
  * this translation unit is empty.
  */
-#if !linux_x86_64
+#if !unix64
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -653,4 +653,4 @@ alldone:
 	stabf = nstabf;
 	{Freexs(); return(tatom);}
 }
-#endif /* !linux_x86_64 */
+#endif /* !unix64 */

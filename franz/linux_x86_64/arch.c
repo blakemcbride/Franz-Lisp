@@ -51,6 +51,7 @@ long howmuch;
 {
     register char *p;
     for (p = where + howmuch; p > where; ) *--p = 0;
+	return(0);
 }
 
 /* ------------------------------------------------------------------ */
@@ -71,11 +72,12 @@ register lispval what;
         what->i = (long)int_str.next_free;
         int_str.next_free = (char *)what;
     }
+	return(0);
 }
 
 /* gstart -- placeholder. Was the start-of-text-segment in the i386
  * a.out layout. Not meaningful with our mmap'd heap; only fex3
- * (dumplisp, stubbed for linux_x86_64) and prunei (rewritten above)
+ * (dumplisp, stubbed on this port) and prunei (rewritten above)
  * cared about it. Returning a low address satisfies code that does
  * "ptr > gstart" (false) checks safely.
  */
@@ -283,7 +285,7 @@ Lcfasl()
 lispval
 Lrmadd()
 {
-    return error("(rmadd) is not supported on linux_x86_64", FALSE);
+    return error("(rmadd) is not supported on this port", FALSE);
 }
 
 lispval
@@ -307,6 +309,9 @@ gstab()
  * binary) calls it. Linux uses ELF and dlsym(); a faithful port would
  * use that. Stubbed here.
  */
+struct nlist;	/* opaque here; declared at file scope so the
+		 * parameter type below isn't local to the function */
+
 nlist(name, table)
 char *name;
 struct nlist *table;
@@ -324,19 +329,19 @@ struct nlist *table;
 lispval
 Lshostk()
 {
-    return error("(showstack) is not implemented on linux_x86_64", FALSE);
+    return error("(showstack) is not implemented on this port", FALSE);
 }
 
 lispval
 Lbaktrace()
 {
-    return error("(baktrace) is not implemented on linux_x86_64", FALSE);
+    return error("(baktrace) is not implemented on this port", FALSE);
 }
 
 lispval
 LIshowstack()
 {
-    return error("(int:showstack) is not implemented on linux_x86_64", FALSE);
+    return error("(int:showstack) is not implemented on this port", FALSE);
 }
 
 /* myfrexp / Lmkcth -- dummy stubs that were already dummies in the

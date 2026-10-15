@@ -21,4 +21,5 @@ static char *rcsid =
  */
 rlc()
 {
+	return(0);
 }

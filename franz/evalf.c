@@ -143,6 +143,7 @@ register struct frame *curfp;
     for (myfp = errp; myfp != (struct frame *)0 ; myfp = myfp->olderrp)
 	if(myfp == curfp) return;
     errorh1(Vermisc,"Invalid pdl pointer given: ",nil,FALSE,0,inewint(curfp));
+	return(0);	/* not reached */
 }
 
 lispval
@@ -161,4 +162,5 @@ Lfretn ()
     lispretval = (lbot+1)->val;	/* value to return 	*/
     Iretfromfr(myfp);
     /* NOT REACHED */
+	return(nil);	/* not reached */
 }

@@ -281,8 +281,9 @@ int uniqid,contuab;
 char *message;
 {
 	IElimit = 0;
-	Ierrorh(type,message,valret,contuab,uniqid);
-	/* NOTREACHED */
+	/* Returns when the error is continuable (contuab) and a handler
+	 * supplies a value -- e.g. the autoloader for undefined functions. */
+	return(Ierrorh(type,message,valret,contuab,uniqid));
 }
 
 lispval
@@ -293,8 +294,9 @@ char *message;
 {
 	IElimit = 1;
 	IEargs[0] = arg1;
-	Ierrorh(type,message,valret,contuab,uniqid);
-	/* NOTREACHED */
+	/* Returns when the error is continuable (contuab) and a handler
+	 * supplies a value -- e.g. the autoloader for undefined functions. */
+	return(Ierrorh(type,message,valret,contuab,uniqid));
 }
 
 lispval
@@ -306,8 +308,9 @@ char *message;
 	IElimit = 2;
 	IEargs[0] = arg1;
 	IEargs[1] = arg2;
-	Ierrorh(type,message,valret,contuab,uniqid);
-	/* NOTREACHED */
+	/* Returns when the error is continuable (contuab) and a handler
+	 * supplies a value -- e.g. the autoloader for undefined functions. */
+	return(Ierrorh(type,message,valret,contuab,uniqid));
 }
 
 lispval
@@ -352,6 +355,7 @@ lispend(mesg)
 	dmpport(errport);
 	franzexit(0);
 	/* NOT REACHED */
+	return(0);	/* not reached */
 	}
 
 /* namerr ***************************************************************/
@@ -370,6 +374,7 @@ namerr()
 	}
 	error("NAMESTACK OVERFLOW",FALSE);
 	/* NOT REACHED */
+	return(0);	/* not reached */
 }
 
 binderr()
@@ -377,6 +382,7 @@ binderr()
 	bnp -= 10;
 	error("Bindstack overflow.",FALSE);
 	/* NOT REACHED */
+	return(0);	/* not reached */
 }
 
 rtaberr()
@@ -384,10 +390,12 @@ rtaberr()
 	bindfix(Vreadtable,strtab,nil);
 	error("Illegal read table.",FALSE);
 	/* NOT REACHED */
+	return(0);	/* not reached */
 }
 xserr()
 {
 	error("Ran out of alternate stack",FALSE);
+	return(0);	/* not reached */
 }
 badmem(n)
 {
@@ -396,6 +404,7 @@ badmem(n)
 	sprintf(errbuf,"Attempt to allocate beyond static structures (%d).",n);
 	error(errbuf,FALSE);
 	/* NOT REACHED */
+	return(0);	/* not reached */
 }
 argerr(msg)
 char *msg;
@@ -403,6 +412,7 @@ char *msg;
 	errorh1(Vermisc,"incorrect number of args to",
 				  nil,FALSE,0,matom(msg));
 	/* NOT REACHED */
+	return(0);	/* not reached */
 }
 
 lispval Vinterrfcn = nil;
@@ -433,6 +443,7 @@ lispval fcn;
     }
 
     errorh1(Vermisc,"wrong number of arguments to ",nil,FALSE,0,fcn);
+	return(0);	/* not reached */
 }
 
 	

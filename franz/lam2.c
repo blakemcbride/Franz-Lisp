@@ -84,6 +84,7 @@ register lispval current;
 			goto pthing;
 		}
 	}
+	return(0);
 }
 
 
@@ -173,6 +174,7 @@ int op;
 			return(result);
 	}
 	/* NOTREACHED */
+	return(nil);	/* not reached */
 }
 
 /* Lload *****************************************************************/
@@ -187,8 +189,10 @@ Lload()
 	register char *p, *ttemp; register lispval vtemp;
 	struct nament *oldbnp = bnp;
 	int orlevel,typ;
-	extern int rlevel;
-	char longname[100];
+	extern int rlevel, uctolc;
+	int ouctolc;
+	lispval oreadtable;
+	char longname[1024];
 	char *shortname, *end2, *Ilibdir();
 	/*Savestack(4); not necessary because np not altered */
 
@@ -199,13 +203,18 @@ Lload()
 	    ttemp = (char *) lbot->val;
 	else 
 	     return(error("FILENAME MUST BE ATOMIC",FALSE));
+	/* room for libdir + '/' + name + ".l" + NUL */
+	if(strlen(Ilibdir()) + strlen(ttemp) + 4 > sizeof(longname))
+	     return(error("load: file name too long",FALSE));
 	strcpy(longname, Ilibdir());
-	for(p = longname; *p; p++);
+	for(p = longname; *p; p++)
+		;
 	*p++ = '/'; *p = 0;
 	shortname = p;
 	strcpy(p,ttemp);
-	for(; *p; p++);
-		end2 = p;
+	for(; *p; p++)
+		;
+	end2 = p;
 	strcpy(p,".l");
 	if ((port = fopen(shortname,"r")) == NULL &&
 		(port = fopen(longname, "r")) == NULL) {
@@ -227,11 +236,24 @@ Lload()
 	/* so readmacros will work			*/
 	PUSHDOWN(Vpiport,P(port));
 	PUSHDOWN(loading,tatom);	/* set indication of loading status */
+	/* Make the readtable binding file-local. Library files such as
+	 * struct.l and loop.l start with (environment-maclisp), which
+	 * switches to Maclisp syntax (/ as escape, uctolc). They were
+	 * meant to be loaded compiled, where that never runs; loaded from
+	 * source it used to leak into the rest of the session.
+	 * environment-syntax now converts a private copy of the readtable,
+	 * so unbinding here restores the caller's syntax. In-place
+	 * setsyntax changes (charmac.l etc.) still persist.
+	 */
+	oreadtable = Vreadtable->a.clb;
+	ouctolc = uctolc;
+	PUSHDOWN(Vreadtable,oreadtable);
 
 	while ((vtemp = readr(port)) != eofa) {
 	    eval(vtemp);
 	}
-	popnames(oldbnp);		/* unbind piport, loading */
+	if(Vreadtable->a.clb != oreadtable) uctolc = ouctolc;
+	popnames(oldbnp);		/* unbind piport, loading, readtable */
 
 	rlevel = orlevel;
 	fclose(port);
@@ -280,13 +302,13 @@ Iconcat(unintern)
 
   	    case INT:
 		 if(15 + cp >= endstrb) cp = atomtoolong(cp);
-		 sprintf(cp,"%d",cur->i);
+		 sprintf(cp,"%ld",cur->i);
 		 while(*cp) cp++;
 		 break;
 
 	    case DOUB:
 		 if(15 + cp >= endstrb) cp = atomtoolong(cp);
-		 sprintf(cp,"%f",cur->f);
+		 sprintf(cp,"%f",cur->r);
 		 while(*cp) cp++;
 		 break;
 

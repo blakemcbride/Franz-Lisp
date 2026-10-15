@@ -64,3 +64,18 @@ lispval typred();
 lispval unprot();
 lispval verify();
 struct atom * newatom();
+
+/* Pointer- and long-returning helpers that some callers used without a
+ * declaration. An implicit `int` return truncates them to 32 bits,
+ * which goes unnoticed on Linux -no-pie (malloc/data sit below 4 GB)
+ * but breaks on macOS, where every address is above 4 GB.
+ */
+char *atomtoolong();
+FILE *fstopen();
+lispval Ifuncal();
+lispval Nioreset();
+long callg_();
+long dodiv();
+long dsneg();
+long exarith();
+long mmuladd();

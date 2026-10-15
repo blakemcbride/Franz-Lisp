@@ -54,8 +54,8 @@ static char *rcsid =
 # define oksetbit	{bitmapi[r] |= s;}
 # endif
 
-# if m_x86_64
-/* x86_64: sizeof(long)==8, 32-bit bitmap ints. One bit per long word.
+# if m_64bit
+/* 64-bit: sizeof(long)==8, 32-bit bitmap ints. One bit per long word.
  *   byte_addr -> bitmap-int index:   (p - OFFSET) >> 8
  *     (256 bytes == 32 longs == 1 bitmap int)
  *   byte_addr -> bit-within-int:     ((p - OFFSET) >> 3) & 31
@@ -79,7 +79,7 @@ static char *rcsid =
 # define roundup(x,l)	(((x - 1) | (l - 1)) + 1) 
 
 # define MARKVAL(v)	if(((uintptr_t)v) >= (uintptr_t)beginsweep) markdp(v);
-# if m_x86_64
+# if m_64bit
 /* (p - OFFSET) >> 8: byte address -> bitmap-int index. See setbit. */
 # define ATOLX(p)	((((uintptr_t)p)-OFFSET)>>8)
 # else
@@ -249,7 +249,7 @@ struct types *type_struct;
 		for(cntr=0, p=(lispval) temp; cntr<atom_str.space; ++cntr)
 			{
 			p->a.pname = (char *) CNIL;
-			p = (lispval) ((int *)p + atom_str.type_len);
+			p = (lispval) ((long *)p + atom_str.type_len);
 			}
 	return(0);  /*  space was available  */
 }
@@ -313,6 +313,7 @@ space_warn(g)
 
 	    error("PAGE LIMIT EXCEEDED--EMERGENCY PAGES ALLOCATED", TRUE);
 	} else error("SORRY, ABSOLUTE PAGE LIMIT HAS BEEN REACHED", TRUE);
+	return(0);	/* not reached */
 }
 
 
@@ -434,7 +435,7 @@ newstr(purep) {
 		p->space_left = LBPG;
 	}
 	strcpy((save = p->next_free), strbuf);
-	/*while(atmlen & 3) ++atmlen;	/*  even up length of string  */
+	/*while(atmlen & 3) ++atmlen;	--  even up length of string  */
 	p->next_free += atmlen;
 	p->space_left -= atmlen;
 	return(save);
@@ -451,12 +452,12 @@ static char * Iinewstr(s,purep) char *s;
 
 char *inewstr(s) char *s;
 {
-	Iinewstr(s,0);
+	return((char *)Iinewstr(s,0));
 }
 
 char *pinewstr(s) char *s;
 {
-	Iinewstr(s,1);
+	return((char *)Iinewstr(s,1));
 }
 
 lispval
@@ -596,11 +597,11 @@ register struct types *typestr;
     while(current !=  CNIL)
     {
 	if(debugin)
-            fprintf(stderr,"next free size %db; ", current->vl.vectorl[-1]);
+            fprintf(stderr,"next free size %ldb; ", current->vl.vectorl[-1]);
 	if ((thissize = VecTotSize(current->vl.vectorl[-1])) == sizewant)
 	{
-	    if(debugin) fprintf(stderr,"exact match of size %d at 0x%x\n",
-	    			4*thissize, &current->v.vector[1]);
+	    if(debugin) fprintf(stderr,"exact match of size %d at %p\n",
+	    			(int)(sizeof(long)*thissize), (void *)&current->v.vector[1]);
 	    back->v.vector[0]
 	    	= current->v.vector[0];/* change free pointer*/
 	    current->v.vector[0] = nil; /* put nil in property */
@@ -614,7 +615,7 @@ register struct types *typestr;
 	     * isn't guaranteed to be followed by another vector
 	     */
 	    if(debugin)
-	     fprintf(stderr,"breaking a %d vector into a ",
+	     fprintf(stderr,"breaking a %ld vector into a ",
 	     				current->vl.vectorl[-1]);
 
 	    current->v.vector[1+sizewant+1]
@@ -624,12 +625,12 @@ register struct types *typestr;
 	    back->v.vector[0] = (lispval) &(current->v.vector[1+sizewant+1]);
 	    current->vl.vectorl[-1] = size;
 
-	    if(debugin)fprintf(stderr," %d one and a %d one\n",
+	    if(debugin)fprintf(stderr," %ld one and a %ld one\n",
 	    	current->vl.vectorl[-1],current->vl.vectorl[1+sizewant]);
 	    current->v.vector[0] = nil; /* put nil in property */
 	    /* vector begins one after the property */
-	    if(debugin) fprintf(stderr," and returning vector at 0x%x\n",
-	    			&current->v.vector[1]);
+	    if(debugin) fprintf(stderr," and returning vector at %p\n",
+	    			(void *)&current->v.vector[1]);
 	    return((lispval)(&current->v.vector[1]));
 	}
 	back =  current;
@@ -672,7 +673,7 @@ register struct types *typestr;
 	if(debugin) fprintf(stderr,"grabbed %d vec pages\n",bytes/LBPG);
     }
     if(debugin)
-      fprintf(stderr,"creating a new vec, size %d\n",current->v.vector[0]);
+      fprintf(stderr,"creating a new vec, size %ld\n",current->vl.vectorl[0]);
     goto again;
 }
 
@@ -732,10 +733,11 @@ lispval bignum;
 	    *(long *)temp = (long) dtpr_str.next_free;
 	    dtpr_str.next_free = (char *) temp;
 	}
+	return(0);
 }
 lispval
 Badcall()
-	{ error("BAD FUNCTION DESCRIPTOR USED IN CALL",FALSE); }
+	{ error("BAD FUNCTION DESCRIPTOR USED IN CALL",FALSE); return(0); }
 
 
 
@@ -854,7 +856,7 @@ gc1()
 	/* the maximum number of bytes we can clear in one sweep is
 	 * 2^16 (or 1<<16 in the C lingo)
 	 */
-	bytestoclear = (((uintptr_t)datalim - (uintptr_t)beginsweep) >> 9) * 16;
+	bytestoclear = (((uintptr_t)datalim - (uintptr_t)beginsweep) / LBPG) * 16;
 	{
 	    /* `bmstart` walks bitmapi (int *), distinct from `start` which
 	     * is now long * for the heap-sweep loop below. */
@@ -929,7 +931,7 @@ gc1()
 	
 	for(k=0 ; k <= VECTORI ; k++)
 	{
-		if( s=gcableptr[k]) {
+		if((s=gcableptr[k])) {
 		    if(k==STRNG && !gcstrings) { /* don't do anything*/ }
 		    else
 			{
@@ -1046,16 +1048,16 @@ gc1()
 		 * and second word since that is property word
 		 */
 		if(debugin)
-		  fprintf(stderr,"vector sweeping, start at 0x%x\n",
-				point);
+		  fprintf(stderr,"vector sweeping, start at %p\n",
+				(void *)point);
 		bits = 30;
 		bvalue = bitmapi[bindex++] >> 2;
 		point += 2;
 		while (TRUE) {
 		    type_len = point[VSizeOff];
 		    if(debugin) {
-		      fprintf(stderr,"point: 0x%x, type_len %d\n",
-		    		point, type_len);
+		      fprintf(stderr,"point: %p, type_len %d\n",
+		    		(void *)point, type_len);
 		      fprintf(stderr,"bvalue: 0x%x, bits: %d, bindex: 0x%x\n",
 				bvalue, bits, bindex);
 		    }
@@ -1070,7 +1072,7 @@ gc1()
 			    ((lispval)(s->next_free))->vl.vectorl[-1]
 			      +=  type_len + 2*sizeof(long); 
 			    if(debugin)
-			      fprintf(stderr,"joined size: %d\n",
+			      fprintf(stderr,"joined size: %ld\n",
 			          ((lispval)(s->next_free))->vl.vectorl[-1]);
 			}
 			else {
@@ -1089,7 +1091,7 @@ gc1()
 		    /* we stop sweeping only when we reach a page
 		       boundary since vectors can span pages
 		     */
-		    if(((uintptr_t)point & 511) == 0)
+		    if(((uintptr_t)point & (LBPG-1)) == 0)
 		    {
 			/* reset the counters, we cannot predict how
 			 * many pages we have crossed over
@@ -1097,11 +1099,11 @@ gc1()
 			bindex = ATOLX(point);
 			/* these will be inced, so we must dec */
 			pindex = &purepage[ATOX(point)] - 1;
-			start = point - 128;
+			start = point - LBPG/sizeof(long);
 			if(debugin)
 			fprintf(stderr,
-				"out of vector sweep when point = 0x%x\n",
-				point);
+				"out of vector sweep when point = %p\n",
+				(void *)point);
 			break;
 		    }
 		    /* must advance to next point and next value in bitmap.
@@ -1179,6 +1181,7 @@ gc1()
 	if(gcstat) gcdump();
 #endif
 	pagenorm(); 
+	return(0);
 }
 
 /*
@@ -1205,11 +1208,11 @@ lispval tname; long npages;
 	if((ii == VECTOR) || (ii == VECTORI))
 	{
 	    /* allocate in one big chunk */
-	    tname = csegment((int) ii,(int) npages*128,0);
-	    tname->vl.vectorl[0] = (npages*512 - 2*sizeof(long));
+	    tname = csegment((int) ii,(int) (npages*LBPG/sizeof(long)),0);
+	    tname->vl.vectorl[0] = (npages*LBPG - 2*sizeof(long));
 	    tname->v.vector[1] = (lispval) typeptr->next_free;
 	    typeptr->next_free = (char *) &(tname->v.vector[1]);
-	    if(debugin) fprintf(stderr,"alloced %d vec pages\n",npages);
+	    if(debugin) fprintf(stderr,"alloced %ld vec pages\n",(long)npages);
 	    return(inewint(npages));
 	}
 	   
@@ -1232,15 +1235,19 @@ csegment(typecode,nitems,useholeflag)
 
 	ii = typecode;
 
-	if(ii!=OTHER) nitems *= 4*spaces[ii]->type_len;
-	nitems = roundup(nitems,512);		/*  round up to right length  */
+	/* type_len counts long-sized slots; LBPG is the page size. Both
+	 * were hard-wired to the 32-bit values (4, 512), which made
+	 * csegment hand back half of what callers asked for on 64-bit.
+	 */
+	if(ii!=OTHER) nitems *= sizeof(long)*spaces[ii]->type_len;
+	nitems = roundup(nitems,LBPG);		/*  round up to right length  */
 #ifdef HOLE
 	if(useholeflag)
 		charadd = gethspace(nitems,ii);
 	else
 #endif
 	{
-#if linux_x86_64
+#if unix64
 		/* Route through the mmap'd Lisp heap; sbrk would grow
 		 * the C data segment (used by libc malloc) and produce
 		 * pointers outside the Lisp heap region. lisp_heap_alloc
@@ -1257,9 +1264,9 @@ csegment(typecode,nitems,useholeflag)
 			error("NOT ENOUGH SPACE FOR ARRAY",FALSE);
 #endif
 	}
-	/*if(ii!=OTHER)*/ (*spaces[ii]->pages)->i +=  nitems/512;
+	/*if(ii!=OTHER)*/ (*spaces[ii]->pages)->i +=  nitems/LBPG;
 	if(ATOX(datalim) > fakettsize) {
-		datalim = (lispval) (OFFSET + (fakettsize << 9));
+		datalim = (lispval) (OFFSET + ((uintptr_t)fakettsize * LBPG));
 		if(fakettsize >= TTSIZE)
 		{
 		    printf("There isn't room enough to continue, goodbye\n");
@@ -1270,9 +1277,9 @@ csegment(typecode,nitems,useholeflag)
 	}
 /*
 	printf("allocating %d bytes (%d pages) at 0x%x for type %s\n",
-	       nitems, nitems>>9, charadd, (*spaces[ii]->type_name)->a.pname);
+	       nitems, nitems/LBPG, charadd, (*spaces[ii]->type_name)->a.pname);
 */
-	for(jj=0; jj<nitems; jj=jj+512) {
+	for(jj=0; jj<nitems; jj=jj+LBPG) {
 		SETTYPE(charadd+jj, ii,30);
 	}
 	{
@@ -1291,7 +1298,7 @@ csegment(typecode,nitems,useholeflag)
 
 int csizeof(tname) lispval tname;
 	{
-	return( spaces[typenum(tname)]->type_len * 4 );
+	return( spaces[typenum(tname)]->type_len * sizeof(long) );
 	}
 
 int typenum(tname) lispval tname;
@@ -1351,12 +1358,13 @@ gcrebear()
 	    p->next_pure_free = (char *) CNIL;
 	}
 #endif
+	return(0);
 }
 
 /** markit(p) ***********************************************************/
 /*  just calls markdp							*/
 
-markit(p) lispval *p; { markdp(*p); }
+markit(p) lispval *p; { markdp(*p); return(0); }
 
 /*
  * markdp(p)
@@ -1368,7 +1376,7 @@ markit(p) lispval *p; { markdp(*p); }
  */
 markdp(p) register lispval p;
 	{
-#if m_tahoe || m_i386 || m_x86_64
+#if m_tahoe || m_i386 || m_64bit
 	register int r, s;	/* (goes with non-asm readbit, oksetbit) */
 #endif
 /*	register hsize, hcntr;						 */
@@ -1378,7 +1386,7 @@ markdp(p) register lispval p;
 	mrkdpcnt++;
 #endif
 ptr_loop:
-#if linux_x86_64
+#if unix64
 	/* On x86_64 static atoms (nilatom, eofatom, Fixzero) live in
 	 * BSS, scattered around the address space rather than at a
 	 * predictable low offset. The original `p <= nil` check
@@ -1404,7 +1412,7 @@ ptr_loop:
 			return;
 
 		case STRNG:
-			p = (lispval) (((int) p) & ~ (LBPG-1));
+			p = (lispval) (((uintptr_t) p) & ~ (uintptr_t)(LBPG-1));
 			ftstbit;
 #endif
 			return;
@@ -1429,8 +1437,8 @@ ptr_loop:
 			 if(gcstat)
 			 {
 			     if(p->d.cdr == nil) consnil++;
-			     else if(((int)p & ~511) 
-				     == (((int)(p->d.cdr)) & ~511))
+			     else if(((uintptr_t)p & ~(uintptr_t)(LBPG-1))
+				     == (((uintptr_t)(p->d.cdr)) & ~(uintptr_t)(LBPG-1)))
 				conssame++;
 			     else consdiff++;
 			  }
@@ -1454,8 +1462,8 @@ ptr_loop:
 			     int l; 
 			     int cnt,d;
 			     if(debugin) {
-			       printf("mark array holders len %d, del %d, start 0x%x\n",
-			         p->ar.length->i,p->ar.delta->i,p->ar.data);
+			       printf("mark array holders len %ld, del %ld, start %p\n",
+			         p->ar.length->i,p->ar.delta->i,(void *)p->ar.data);
 				 fflush(stdout);
 			    }
 			     l = p->ar.length->i; /* number of elements */
@@ -1519,8 +1527,8 @@ ptr_loop:
 			    ftstbit;
 			    vsize = VecSize(p->vl.vectorl[VSizeOff]);
 			    if(debugin)
-			       fprintf(stderr,"mark vect at %x  size %d\n",
-			       		p,vsize);
+			       fprintf(stderr,"mark vect at %p  size %d\n",
+			       		(void *)p,vsize);
 			    while(--vsize >= -1)
 			    {
 				MARKVAL(p->v.vector[vsize]);
@@ -1537,7 +1545,7 @@ ptr_loop:
  * xsbrk(0)  returns a pointer to the next page we will allocate (like sbrk(0))
  */
 
-#if linux_x86_64
+#if unix64
 
 /*
  * Phase 1b: replace sbrk-based allocation with a single mmap'd
@@ -1582,7 +1590,7 @@ heap_init(void)
 }
 
 /* lisp_heap_alloc -- low-level bump allocator from the mmap'd region.
- * Called by xsbrk, ysbrk, and (via the linux_x86_64 path in csegment)
+ * Called by xsbrk, ysbrk, and (via the unix64 path in csegment)
  * by Lalloc(). Returns NULL on exhaustion; callers decide how to
  * report. nbytes is rounded up to LBPG so the type-table indexing
  * stays page-aligned.
@@ -1635,7 +1643,7 @@ ysbrk(pages, type) int pages, type;
     return result;
 }
 
-#else  /* !linux_x86_64 -- original sbrk-based allocator */
+#else  /* !unix64 -- original sbrk-based allocator */
 
 char *
 xsbrk(n)
@@ -1684,7 +1692,7 @@ char *ysbrk(pages,type) int pages, type;
 	return(xx);	/*  return pointer to block of storage  */
 	}
 
-#endif /* linux_x86_64 */
+#endif /* unix64 */
 	
 /*
  * getatom 
@@ -1813,4 +1821,4 @@ LImemory()
 }
 
 extern struct atom *hasht[HASHTOP];
-myhook(){}
+myhook(){ return(0); }

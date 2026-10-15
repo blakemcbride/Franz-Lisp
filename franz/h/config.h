@@ -10,15 +10,18 @@
  *   Modified by RMT 11 May 1992 for 386bsd
  *   Linux x86_64 port: 2026
  *
- * The lconf.h file (created by ./lispconf) is included for forward
- * compatibility with future arch additions, but right now it just
- * #define's linux_x86_64 1.
+ * The lconf.h file (created by ./lispconf) #define's the target name,
+ * e.g. `linux_x86_64 1' or `macos_arm64 1'. Every supported target
+ * shares one configuration, the 64-bit Unix port, which the kernel
+ * selects with the neutral macro `unix64' defined here.
  */
 
 #include "lconf.h"
 
-#if !linux_x86_64
-#error "Only linux_x86_64 is supported in this port. Run ./lispconf linux_x86_64."
+#if linux_x86_64 || linux_arm64 || macos_arm64 || macos_x86_64
+#define unix64 1
+#else
+#error "lconf.h is not configured. Run ./lispconf (see ./lispconf -l)."
 #endif
 
 
@@ -33,8 +36,15 @@
  * Machine identity
  * ==================================================================== */
 
-#define m_x86_64        1
+#define m_64bit         1
+/* m_64bit selects the 64-bit (LP64) code paths, on x86_64 and arm64
+ * alike; MACHINE is what (status features) reports.
+ */
+#if defined(__aarch64__) || defined(__arm64__)
+#define MACHINE         "arm64"
+#else
 #define MACHINE         "x86_64"
+#endif
 
 /* OFFSET is the base address subtracted from a Lisp pointer when
  * computing its page index in the type table (see ATOX in global.h).
@@ -53,7 +63,11 @@
  * ==================================================================== */
 
 #define os_unix         1
+#if macos_arm64 || macos_x86_64
+#define os_macos        1
+#else
 #define os_linux        1
+#endif
 #define os_4_3          1   /* enables RTPORTS (runtime FILE* allocation) */
 #define OS              "unix"
 
@@ -110,7 +124,7 @@
  * ==================================================================== */
 
 /* TTSIZE -- absolute limit, in LBPG-sized pages, on the size of the
- * Lisp heap. With LBPG=1024 on linux_x86_64, 32768 pages = 32 MB.
+ * Lisp heap. With LBPG=1024 on the 64-bit port, 32768 pages = 32 MB.
  * Original i386 default was 6120 (3 MB) with 512-byte pages.
  * Recompile alloc.c and data.c after changing.
  */

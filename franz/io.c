@@ -156,7 +156,7 @@ top:
 				if(result->val==nil) {
 					work = result->val=newdot();
 					current = (lispval *) &(work->d.cdr);
-					fprintf(stderr,baddot1);
+					fputs(baddot1,stderr);
 				}
 				work = readrx(TLPARA);
 				if (work->d.cdr!=nil) {
@@ -577,7 +577,7 @@ verylast:
  	/* scanf requires that the exponent be 'e' */
 	if(exploc != (char *) 0 ) *exploc = 'e';
 	*name=0;
-	sscanf(strbuf,"%F",&realno);
+	sscanf(strbuf,"%lf",&realno);	/* BSD "%F" meant double; ISO C uses %lf */
 	(result = newdoub())->r = realno;
 	return(result);
 }
@@ -738,11 +738,11 @@ val_loop:
 	if(! VALID(a)) {
 	    debugmode = Istsrch(matom("debugging"))->d.cdr->d.cdr->d.cdr;
 	    if(debugmode != nil) {
-		printf("<printr:bad lisp data: 0x%x>\n",a);
+		printf("<printr:bad lisp data: %p>\n",(void *)a);
  		error("Bad lisp data encountered by printr", FALSE); 
 	    } else {
 		a = badst;
-		printf("<printr:bad lisp data: 0x%x>",a);
+		printf("<printr:bad lisp data: %p>",(void *)a);
 		return;
 	    }
 	}
@@ -758,7 +758,7 @@ val_loop:
 			a = a->l;
 			goto val_loop;
 
-	case INT:	fprintf(useport,"%d",a->i);
+	case INT:	fprintf(useport,"%ld",a->i);
 			break;
 
 	case DOUB:	{  char buf[64];
@@ -770,7 +770,7 @@ val_loop:
 	case PORT:	{ lispval  cp;
 			  if((cp = ioname[PN(a->p)]) == nil)
 			     fputs("%$unopenedport",useport);
-			  else fprintf(useport,"%%%s",cp);
+			  else fprintf(useport,"%%%s",(char *)cp);
 			}
 			break;
 
@@ -812,7 +812,7 @@ val_loop:
 			
 	case VECTOR:
 			chstr = "vector";
-			quot = 4; 	/* print out # of longwords */
+			quot = sizeof(long); 	/* print out # of longwords */
 			goto veccommon;
 
 	case VECTORI:
@@ -845,7 +845,7 @@ val_loop:
 				chstr = a->v.vector[VPropOff]->d.car->a.pname;
 			    }
 			}
-			fprintf(useport,"%s[%d]",
+			fprintf(useport,"%s[%ld]",
 			  	    chstr, a->vl.vectorl[VSizeOff]/quot);
 			break;
 
@@ -854,11 +854,11 @@ val_loop:
 			fputs("]",useport);
 			break;
 
-	case BCD:	fprintf(useport,"#%X-",a->bcd.start);
+	case BCD:	fprintf(useport,"#%lX-",(unsigned long)a->bcd.start);
 			printr(a->bcd.discipline,useport);
 			break;
 
-	case OTHER:	fprintf(useport,"#Other-%X",a);
+	case OTHER:	fprintf(useport,"#Other-%lX",(unsigned long)a);
 			break;
 
 	case SDOT:	pbignum(a,useport);
@@ -959,6 +959,7 @@ val_loop:
 			}
 		}
 	}
+	return(0);
 }
 
 /* -- vectorpr
@@ -1022,6 +1023,7 @@ double val;
 	*cp1++ = '.';
 	*cp1++ = '0';
 	*cp1++ = 0;
+	return(0);
 }
 	
 
@@ -1032,6 +1034,7 @@ dmpport(useport)
 FILE *useport;
 {
 	fflush(useport);
+	return(0);
 }
 
 /*  protect and unprot moved to eval.c  (whr)  */

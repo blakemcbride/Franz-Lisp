@@ -1,12 +1,12 @@
 # BUILD.md
 
-How to build and run the Linux x86_64 port of Franz Lisp from this
-source tree.
+How to build and run the 64-bit Unix port of Franz Lisp (Linux and
+macOS) from this source tree.
 
 ## Quick start
 
 ```sh
-./lispconf linux_x86_64
+./lispconf
 make rawlisp
 bin/lisp
 ```
@@ -15,11 +15,13 @@ Type `(+ 1 2)` and you should get back `3`.
 
 ## Prerequisites
 
-The port targets Linux x86_64 with the GNU toolchain. You need:
+**On macOS** (Apple Silicon or Intel) see [macOS.md](macOS.md): install
+the Xcode Command Line Tools and the same commands work unchanged.
 
-- A C compiler that accepts `-std=gnu89`. gcc 4 and later all work;
-  this tree was developed against gcc 15. Clang should also work but
-  hasn't been tested.
+On Linux you need:
+
+- A C compiler that accepts `-std=gnu89`: gcc 4 or later (tested with
+  gcc 15). Clang on Linux is untested.
 - GNU make.
 - glibc development headers.
 - A termcap-compatible library with the classic API (`tgetent`,
@@ -43,12 +45,35 @@ the C library — there's no Python, no autoconf, no CMake.
 
 ## Build
 
-The tree is configured for a single platform; the configuration file
-`franz/h/lconf.h` is regenerated from scratch each time:
+First configure the tree. With no argument `lispconf` detects the
+host; you can also name the target explicitly:
 
 ```sh
-./lispconf linux_x86_64
+./lispconf                 # detect: linux_x86_64, macos_arm64, ...
+./lispconf linux_x86_64    # or name it
+./lispconf -l              # list targets
 ```
+
+| Target | Platform |
+|---|---|
+| `linux_x86_64` | Linux on x86_64 (gcc) |
+| `linux_arm64` | Linux on arm64/aarch64 (untested) |
+| `macos_arm64` | macOS on Apple Silicon (Apple clang) |
+| `macos_x86_64` | macOS on Intel (untested) |
+
+`lispconf` writes the target into `franz/h/lconf.h` (for example
+`#define macos_arm64 1`), and each target builds in its own directory,
+`franz/<target>/`. All targets share one 64-bit configuration, though:
+`config.h` maps every target name to the kernel's internal `unix64`
+macro, and the per-arch sources (`callg.c`, `bignum.c`, `arch.c`,
+`clinkfns.c`) and build rules live once, in `franz/linux_x86_64/`. The
+other target directories hold a short Makefile that includes those
+rules, plus that target's objects and `rawlisp`. The Makefile adapts
+its compiler flags to the host (gcc on Linux, Apple clang on macOS).
+
+To switch targets in the same tree, run `make clean` and then
+`./lispconf <target>` again. `make` and `bin/lisp` refuse to run until
+the tree is configured.
 
 Then build the kernel and link the bare interpreter:
 
@@ -58,7 +83,8 @@ make rawlisp
 
 You'll see `cc -c ...` lines for each kernel source, then a final
 `cc ... -o rawlisp ...` link step. The result is
-`franz/linux_x86_64/rawlisp` — about 540 KB, dynamically linked.
+`franz/<target>/rawlisp` (e.g. `franz/macos_arm64/rawlisp`) — about
+500 KB, dynamically linked.
 
 Other useful targets:
 
@@ -67,9 +93,10 @@ Other useful targets:
 | `make smoke` | Compile a single kernel `.c` file. Fast sanity check. |
 | `make kernel` | Compile every kernel source. Stops short of linking. |
 | `make rawlisp` | Compile + link the bare interpreter. |
-| `make clean` | Remove `.o` files and the binary. |
+| `make clean` | Remove `.o` files and the binary, for every target directory (so a target switch never leaves stale objects). |
+| `make distclean` | `clean`, plus `franz/h/lconf.h` (rerun `./lispconf` afterwards), the manual build in `doc/`, compiled Lisp (`.so`), lxref (`.x`) output and editor droppings anywhere in the tree. Source edits are left alone. |
 
-`make` from the top-level dispatches into `franz/linux_x86_64/Makefile`,
+`make` from the top-level dispatches into `franz/<target>/Makefile`,
 where the actual work happens.
 
 ## Run
@@ -89,8 +116,8 @@ Output:
 
 ```
 Franz Lisp, Opus 38
--> [load /…/lisplib/common0.l]
-[load /…/lisplib/syntax.l]
+[load /…/lisplib/common2.l]
+[load /…/lisplib/common3.l]
 … (the full library loads in about a second on modern hardware)
 -> 
 ```
@@ -112,7 +139,7 @@ LISPLIB=/some/other/path/lisplib bin/lisp
 ```
 
 To run `rawlisp` directly without the library (useful for kernel
-debugging), invoke `franz/linux_x86_64/rawlisp` straight. You'll
+debugging), invoke `franz/<target>/rawlisp` straight. You'll
 have only the kernel built-ins (`def`, `eq`, `cons`, `mapcar`, `cond`,
 arithmetic, the break loop). `defun`, `princ`, `reverse`, etc. are
 library-only and won't be defined.
@@ -122,15 +149,16 @@ library-only and won't be defined.
 After `make rawlisp`:
 
 ```
-franz/*.o                        37 machine-independent kernel objects
-franz/linux_x86_64/callg.o       x86_64 ABI varargs trampoline
-franz/linux_x86_64/bignum.o      bignum kernels (multiply, divide, etc.)
-franz/linux_x86_64/arch.o        small arch helpers, frame primitives
-franz/linux_x86_64/rawlisp       the linked interpreter
+franz/*.o                   37 machine-independent kernel objects
+franz/<target>/callg.o      foreign-call trampoline
+franz/<target>/bignum.o     bignum kernels (multiply, divide, etc.)
+franz/<target>/arch.o       small arch helpers, frame primitives
+franz/<target>/clinkfns.o   linker for compiled (liszt) code
+franz/<target>/rawlisp      the linked interpreter
 ```
 
 The kernel comes to ~20k lines of C across `franz/`; the arch-specific
-glue under `franz/linux_x86_64/` is ~700 lines.
+glue (shared by all targets, in `franz/linux_x86_64/`) is ~700 lines.
 
 ## What works
 
@@ -140,8 +168,8 @@ can use:
 - All core forms: `def`, `defun`, `defmacro`, `cond`, `let`, `prog`,
   `setq`, `quote`, `function`, `lambda`, `mapc`, `mapcar`, `apply`,
   …
-- Arithmetic: fixnum and bignum on `+ - times //`. Bignum products
-  fitting in 60 bits work (`(times 1000000 1000000)` is fine).
+- Arithmetic: fixnum and bignum (`+ - times quotient expt` …), and
+  floating point.
 - Lists: `cons`, `car`, `cdr`, `caar`, …, `assoc`, `member`, `memq`,
   `reverse`, `length`, `append`, `nth`, `last`.
 - I/O: `princ`, `prin1`, `terpri`, `read`, `print`, `format`, file
@@ -173,19 +201,13 @@ interpreted version on a recursive `fib` benchmark.
 ## What doesn't work
 
 - **`(dumplisp 'name)`** — writing the running Lisp image to disk as
-  a fast-start binary. Not implemented; the launcher's source-load
-  approach is fast enough that this hasn't been missed.
-- **`(showstack)`**, **`(baktrace)`** — these stack-walked the C
-  call frames using i386 layout assumptions; they'd need libunwind
-  on x86_64.
-- **`ffasl`**, the foreign-function fasl that loaded raw `.o`
-  files of compiled C extensions. Different from `cfasl` (the
-  Lisp-to-C compile path), which works.
-- **Bignum products beyond 60 bits** wrap or hang. The bignum kernel
-  uses 30-bit halfwords (preserved from the original to minimize
-  port risk); a 32-bit-fixnum × 32-bit-fixnum product can overflow
-  the two-halfword temporary in `Ltimes`. Phase 1h (described in
-  PortPlan.md) would widen halfwords to 60 bits to fix this.
+  a fast-start binary. Not implemented; loading the library from
+  source at startup is fast enough.
+- **`(showstack)`**, **`(baktrace)`** — these walk the C call stack;
+  they would need a stack unwinder such as libunwind.
+- **`ffasl`**, the foreign-function fasl that loads raw `.o` files of
+  compiled C extensions. Different from `cfasl` (the Lisp-to-C
+  compile path), which works.
 
 ## Troubleshooting
 
@@ -206,7 +228,7 @@ session via stdin redirection.
 directly without `init.l`. Use `bin/lisp` instead, or first evaluate
 `(int:setsyntax '\; 'splicing 'zapline)` so `;` is the comment macro.
 
-**Crashes on first allocation** → if you've changed `OFFSET`,
-`TTSIZE`, `LBPG`, or any of the `*SPP` constants in `franz/h/`,
-recompile cleanly: `make clean && make rawlisp`. The bitmap and
-typetable sizes need to match across compilation units.
+**Crashes on first allocation** → if you've changed `TTSIZE`,
+`LBPG`, or any of the `*SPP` constants in `franz/h/`, recompile
+cleanly: `make clean && make rawlisp`. The bitmap and typetable sizes
+need to match across compilation units.

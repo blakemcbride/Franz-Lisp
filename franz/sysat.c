@@ -443,6 +443,7 @@ makevals()
 	/*  now it is OK to collect garbage  */
 
 	initflag = FALSE;
+	return(0);
 	}
 
 /*  matom("name")  ******************************************************/
@@ -507,6 +508,7 @@ register struct ftab *table;
 		v->bcd.start = table->start;
 		v->bcd.discipline = *table->discip;
 	}
+	return(nil);
 }
 
 static struct ftab cfuns[] = {
@@ -748,7 +750,7 @@ static struct ftab cfuns[] = {
   {"make-c-thunk", Lmkcth, &(lambda)}, 	/* make wrappers    */
   {"boundp", Lboundp, &(lambda)},	/* tells if an atom is bound */
   {"fake", Lfake, &(lambda)},	/* makes a fake lisp pointer */
-/***	MK("od",Lod,lambda),		/* dumps info */
+/***	MK("od",Lod,lambda),		-- dumps info */
   {"maknum", Lmaknum, &(lambda)},	/* converts a pointer to an integer */
   {"*mod", LstarMod, &(lambda)},		/* return fixnum modulus */
   {"*invmod", Lstarinvmod, &(lambda)},	/* return fixnum modulus ^-1 */

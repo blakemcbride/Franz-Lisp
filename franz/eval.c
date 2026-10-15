@@ -325,6 +325,7 @@ register struct nament *llimit;
     for(rnp = bnp; --rnp >= llimit;)
         rnp->atm->a.clb = rnp->val;
     bnp = llimit;
+	return(nil);
 }
 
 
@@ -341,11 +342,12 @@ dumpnamestack()
     for(newnp = orgnp ; (newnp < np + 6) && (newnp < nplim) ; newnp++)
     {
 	if(newnp == np) printf("**np:**\n");
-	printf("[%d]: ",newnp-orgnp);
+	printf("[%ld]: ",(long)(newnp-orgnp));
 	printr(newnp->val,stdout);
 	printf("\n");
     }
     printf("end namestack dump\n");
+	return(0);
 }
 
 
@@ -501,6 +503,7 @@ register struct argent * workp;        /* workp points to position on stack
     bnp = namptr;
     if (workp < np)
         error("Too many actual parameters",FALSE);
+	return(0);	/* not reached */
 }
 
 /* the argument to Lfuncal is now mandatory since nargs
@@ -522,7 +525,7 @@ lispval fcn;
     extern lispval end[];
     Savestack(3);
 
-    /*if(nargs()==1)			/* function I am evaling.    */
+    /*if(nargs()==1)			-- function I am evaling.    */
 	a = fcncalled = fcn;
     /*else { a = fcncalled = lbot->val; lbot++; }*/
 
@@ -712,7 +715,7 @@ Lfuncal()
 
 /* The following must be the next "function" after Lfuncal, for the
 sake of Levalf.  */
-fchack () {}
+fchack () { return(0); }
 
 
 /*
@@ -760,6 +763,7 @@ lispval a;
     (np++)->val = a;
        if (np >=  nplim)
         namerr();
+	return(a);
 }
 
 /* unprot
@@ -776,6 +780,7 @@ lispval
 linterp()
     {
     error("BYTE INTERPRETER CALLED ERRONEOUSLY",FALSE);
+	return(nil);	/* not reached */
     }
 
 /* Undeff - called from qfuncl when it detects a call to a undefined
@@ -804,5 +809,6 @@ lispval firstarg;
         mybnp->atm->a.clb = *argp++;
         bnp = mybnp++;
     }
+	return(0);
 }
 

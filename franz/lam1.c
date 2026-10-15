@@ -11,7 +11,7 @@ static char *rcsid =
  */
 
 # include "global.h"
-# if !linux_x86_64
+# if !unix64
 #  include <sgtty.h>	/* only Ldrain()'s non-linux path uses sgttyb/gtty/stty */
 # endif
 # include "chkrtab.h"
@@ -329,6 +329,7 @@ Lreturn()
 	if(lbot==np) protect (nil);
 	Inonlocalgo(C_RET,lbot->val,nil);
 	/* NOT REACHED */
+	return(nil);	/* not reached */
 }
 
 
@@ -427,6 +428,7 @@ Lclose()
 	}
 	errorh1(Vermisc,"close:Non-port",nil,FALSE,987,port);
 	/* not reached */
+	return(nil);
 }
 
 lispval
@@ -454,7 +456,7 @@ Lnwritn()
 	}
 
 	port = okport(handy,okport(Vpoport->a.clb,stdout));
-#if linux_x86_64
+#if unix64
 	/* glibc FILE internals are opaque, and ftello returns the
 	 * full file offset rather than the column-on-current-line that
 	 * Franz Lisp expects. Liszt's d-stringout uses (- 60 (nwritn))
@@ -480,7 +482,7 @@ Ldrain()
 {
 	register FILE *port;
 	register lispval handy;
-#if !linux_x86_64
+#if !unix64
 	register int iodes;
 	struct sgttyb arg;
 #endif
@@ -492,7 +494,7 @@ Ldrain()
 	    handy = lbot->val;
 	}
 	port = okport(handy, okport(Vpoport->a.clb,stdout));
-#if linux_x86_64
+#if unix64
 	/* On glibc, drain a port by flushing its write buffer. There's
 	 * no portable way to tell write vs read without poking FILE
 	 * internals, so try fflush unconditionally; for read-only streams
@@ -679,6 +681,7 @@ Lset()
 
 	error("IMPROPER USE OF SET",FALSE);
 	/* NOTREACHED */
+	return(nil);	/* not reached */
 }
 
 lispval
@@ -985,7 +988,7 @@ loop:	switch(TYPE(temp)) {
 		break;
 
 	case INT:
-		sprintf(strbuf,"%d",temp->i);
+		sprintf(strbuf,"%ld",temp->i);
 		handy =strbuf;
 		break;
 

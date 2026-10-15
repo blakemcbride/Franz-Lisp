@@ -55,6 +55,7 @@ int doprof = FALSE;
 Lmonitor()
 {
 	error("Profiling not enabled",FALSE);
+	return(0);	/* not reached */
 }
 
 

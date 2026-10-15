@@ -69,7 +69,7 @@ Lgcstat()
 		      * to silence the warning explicitly.
 		      */
 		     hhh.lowdata = (int)(uintptr_t)beginsweep;
-		     printf("writing %d bytes \n",sizeof(hhh));
+		     printf("writing %lu bytes \n",(unsigned long)sizeof(hhh));
 		     write(gcstat,(char *)&hhh,sizeof(hhh));
 		     gccount = 0;
 		     return(tatom);
@@ -78,12 +78,12 @@ Lgcstat()
 		     /* first write out the type table */ 
 		     nbytes = 0;
 		     /* 0 means type table follows */
-		     printf("gc's %d, writing %d bytes \n",gccount,
-				  sizeof(nbytes));
+		     printf("gc's %d, writing %lu bytes \n",gccount,
+				  (unsigned long)sizeof(nbytes));
 		     write(gcstat,(char *)&nbytes,sizeof(nbytes));
 		     write(gcstat,(char *)&typetable[ATOX(beginsweep)+1],
-				nbytes = ((uintptr_t)datalim - (uintptr_t)beginsweep)>>9);
-		     printf("writing %d bytes \n",nbytes+sizeof(nbytes));
+				nbytes = ((uintptr_t)datalim - (uintptr_t)beginsweep)/LBPG);
+		     printf("writing %lu bytes \n",(unsigned long)(nbytes+sizeof(nbytes)));
 		     write(gcstat,(char *)&nbytes,sizeof(nbytes));
 		     close(gcstat);
 		     gcstat = 0;
@@ -92,6 +92,7 @@ Lgcstat()
 		     error("Bad value to gcstat ",TRUE);
 	}
 	/* NOTREACHED */
+	return(nil);	/* not reached */
 }
 extern int bitmapi[];		/* a bit of a lie it is really a double array*/
 char *bitmapc = (char *)bitmapi;
@@ -103,7 +104,7 @@ gcdump()
 	extern struct vtimes premark,presweep,alldone;
 	int nbytes, recsize;
 	/* 16 bytes/page in the bitmap */
-	nbytes = (((int) datalim - (int) beginsweep) >> 9) * 16;
+	nbytes = (((uintptr_t) datalim - (uintptr_t) beginsweep) / LBPG) * 16;
 	recsize = nbytes + 6*sizeof(int) + 3*sizeof(struct vtimes);
 	write(gcstat,(char *)&recsize,sizeof(recsize)); /* whole record size */
 	write(gcstat,(char *)&premark,sizeof(premark));
@@ -118,4 +119,5 @@ gcdump()
 	write(gcstat,(char *)&bitmapc[ATOX(beginsweep) * 16],nbytes);
 	printf("gc: %d, written %d bytes\n",++gccount,nbytes);
 #endif
+	return(0);
 }

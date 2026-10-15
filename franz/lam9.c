@@ -18,7 +18,7 @@ static char *rcsid =
  */
 
 #include <stdio.h>		/*add definations for I/O and bandrate */
-#if linux_x86_64
+#if unix64
 #include <termios.h>		/* replaces BSD <sgtty.h> */
 #else
 #include <sgtty.h>
@@ -45,9 +45,9 @@ extern lispval newvec();
 /* inewint declared in global.h as a macro; do not redeclare here. */
 
 /*
-/*	This routine will initialize the termcap for the lisp programs.
-/*	If the termcap file is not found, or terminal type is undefined,
-/*	it will print out an error mesg.				*/
+ *	This routine will initialize the termcap for the lisp programs.
+ *	If the termcap file is not found, or terminal type is undefined,
+ *	it will print out an error mesg.				*/
 
 lispval
 Ltci()
@@ -55,7 +55,7 @@ Ltci()
 char *cp = getenv("TERM");
 char *pc;
 int found;
-#if linux_x86_64
+#if unix64
 struct termios tty;
 #else
 struct sgttyb tty;
@@ -67,7 +67,7 @@ switch(found) {
       case 0 :	printf("\nError No Termcap Entry for this terminal \n");
 		break;
       case 1 : {			/* everything was ok	*/
-#if linux_x86_64
+#if unix64
 		/* Use termios to read the output baud rate from fd 1. */
 		if (tcgetattr(1, &tty) == 0)
 		    ospeed = cfgetospeed(&tty);
@@ -90,12 +90,12 @@ if (pc)
 return(nil);
 }
 /* This routine will execute any of the termcap functions used by the lisp
-/* program. If the feature is not include in the terminal defined it will
-/* ignore the call.
-/*		option	: feature to execute
-/*		line	: line if is nessery
-/*		colum	: colum if is nessaery
-/*									*/
+ * program. If the feature is not include in the terminal defined it will
+ * ignore the call.
+ *		option	: feature to execute
+ *		line	: line if is nessery
+ *		colum	: colum if is nessaery
+ *									*/
 static int show();    /* fwd; defined below */
 
 lispval

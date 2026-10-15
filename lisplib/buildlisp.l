@@ -22,7 +22,7 @@
 (or (boundp 'build:map) (setq build:map nil))
 (or (boundp 'build:load) (setq build:load nil))
 (or (boundp 'build:lisp-type) (setq build:lisp-type 'franz))
-(or ;(boundp 'lisp-library-directory)
+(or (boundp 'lisp-library-directory)
    (setq lisp-library-directory '/usr/local/lib/lisp))
 (or (boundp 'lisp-object-directory)
    (setq lisp-object-directory '/usr/local/bin))

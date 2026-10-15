@@ -12,6 +12,11 @@ static char *rcsid =
 
 #include "global.h"
 #include <signal.h>
+/* execl is variadic, and on Apple arm64 variadic args go on
+ * the stack -- an unprototyped call passes them in registers instead,
+ * so the shell exec in *process silently failed. Declare it rather than
+ * include <unistd.h>, whose brk/sbrk clash with dfuncs.h. */
+extern int execl(const char *, const char *, ...);
 #include <time.h>		/* ctime, time, time_t */
 
 
@@ -438,7 +443,7 @@ Lprname()
 	a = lbot->val;
 	switch (TYPE(a)) {
 		case INT:
-			sprintf(ctemp,"%d",a->i);
+			sprintf(ctemp,"%ld",a->i);
 			break;
 
 		case DOUB:
@@ -484,6 +489,7 @@ Lexit()
 	if(TYPE(handy)==INT)
 		franzexit((int) handy->i);
 	franzexit(-1);
+	return(nil);	/* not reached */
 }
 lispval
 Iimplode(unintern)

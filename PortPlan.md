@@ -1,5 +1,14 @@
 # PortPlan.md — Franz Lisp on x86_64 Linux
 
+> **Current status (supersedes the phase notes below):** the port is
+> complete and also runs on macOS (Apple Silicon). `./lispconf` now
+> detects the host and accepts `linux_x86_64`, `linux_arm64`,
+> `macos_arm64`, `macos_x86_64`; each builds in `franz/<target>/`, and
+> all share the configuration this plan calls `linux_x86_64` (now the
+> `unix64` macro in the code). See [BUILD.md](BUILD.md) and
+> [macOS.md](macOS.md).
+> The phase notes below are kept as the historical record.
+
 This is a plan, not a contract. Many decisions depend on what we discover when the C kernel first compiles and runs. Expect revisions after each phase.
 
 **Status:** Phase 0 complete (build infrastructure, single-file smoke test). Old-machine support (vax/tahoe/68k/i386) was deleted as a follow-up cleanup; only `linux_x86_64` is configured. Phase 1 is next.
